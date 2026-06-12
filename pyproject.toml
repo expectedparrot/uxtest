@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "uxtest"
+version = "0.1.0"
+description = "Synthetic-user UX studies against live web applications"
+requires-python = ">=3.11"
+dependencies = [
+  "edsl",
+  "pillow>=10",
+  "playwright>=1.40",
+  "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+uxtest = "uxtest.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.uv.sources]
+edsl = { path = "../../../edsl", editable = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

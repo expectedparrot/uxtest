@@ -1,0 +1,15 @@
+schema_version: 1
+name: research-collaborator
+description: Academic peer looking for relevant papers and collaboration overlap
+attributes:
+  role: economics or information systems faculty member
+  academic_stage: faculty
+  domain_interest: AI methods, online labor markets, experiments
+  technical_depth: high
+  time_pressure: high
+accessibility: {}
+goals_bias: Scans for recent working papers, coauthors, publication status, citations,
+  slides, data/code links, and evidence of methodological fit.
+frustration:
+  threshold: 6
+  per_step_decay: 1

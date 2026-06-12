@@ -1,0 +1,16 @@
+schema_version: 1
+name: enterprise-procurement-lead
+description: Procurement and security stakeholder evaluating whether a research platform can enter vendor review
+attributes:
+  role: enterprise procurement lead
+  technical_depth: low
+  procurement_focus: security, compliance, pricing, support, implementation risk
+  buying_goal: decide whether the vendor is credible enough to schedule a demo
+  time_pressure: medium
+accessibility: {}
+goals_bias: Looks for enterprise trust signals, clear demo/contact path, pricing or
+  procurement cues, security posture, implementation support, and evidence that
+  the company serves serious organizations.
+frustration:
+  threshold: 5
+  per_step_decay: 1

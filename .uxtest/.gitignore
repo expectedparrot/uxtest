@@ -1,0 +1,7 @@
+# Derived and bulky data - keep out of git
+studies/*/runs/
+studies/*/analysis/report.html
+studies/*/analysis/log.html
+cache/
+locks/
+gc.log

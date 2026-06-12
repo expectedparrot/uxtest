@@ -1,0 +1,24 @@
+flaws:
+  - id: login_detour
+    expected_in: flawed
+    absent_in: clear
+    description: Exploratory product-learning actions lead users into login.
+  - id: dead_docs_link
+    expected_in: flawed
+    absent_in: clear
+    description: Docs and pricing links acknowledge clicks without navigating.
+  - id: generic_cta_confusion
+    expected_in: flawed
+    absent_in: clear
+    description: Generic CTAs such as Open example, Continue, and Get started mislead users.
+  - id: repeated_non_navigation
+    expected_in: flawed
+    absent_in: clear
+    description: Users repeat the same non-navigating action while trying to learn more.
+checks:
+  - id: first_click_clear_explores_products
+    type: first_click
+    expected_in: clear
+    action_contains: explore products
+    final_url_contains: /designer
+    description: Clear variant should route the first product-learning click into product detail, not auth.

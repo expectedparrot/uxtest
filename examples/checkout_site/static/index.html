@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Acme Market Checkout</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/">Acme Market</a>
+      <nav aria-label="Primary">
+        <a href="#products">Products</a>
+        <a href="#cart">Cart <span id="cart-count">0</span></a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Same-day pantry staples</p>
+          <h1>Checkout flow test fixture</h1>
+          <p>
+            Add the breakfast bundle to your cart and complete guest checkout
+            using test payment details.
+          </p>
+        </div>
+      </section>
+
+      <section id="products" class="band">
+        <div class="section-head">
+          <h2>Featured product</h2>
+          <p id="variant-label"></p>
+        </div>
+        <article class="product">
+          <div class="product-media" aria-hidden="true">
+            <span>AM</span>
+          </div>
+          <div>
+            <h3>Breakfast Bundle</h3>
+            <p>Fresh coffee, granola, and fruit for a weekday reset.</p>
+            <p class="price">$28.00</p>
+            <button id="add-to-cart" type="button">Add to cart</button>
+          </div>
+        </article>
+      </section>
+
+      <section id="cart" class="band">
+        <div class="section-head">
+          <h2>Your cart</h2>
+          <p id="cart-status">Your cart is empty.</p>
+        </div>
+        <div id="cart-panel" class="panel hidden">
+          <div class="line-item">
+            <span>Breakfast Bundle</span>
+            <strong>$28.00</strong>
+          </div>
+          <div id="cart-actions" class="actions"></div>
+        </div>
+      </section>
+
+      <section id="checkout" class="band hidden" aria-live="polite">
+        <div class="section-head">
+          <h2>Guest checkout</h2>
+          <p id="checkout-help"></p>
+        </div>
+        <form id="checkout-form" class="checkout-form" novalidate>
+          <label>
+            Email
+            <input id="email" name="email" autocomplete="email" />
+          </label>
+          <label>
+            Shipping name
+            <input id="name" name="name" autocomplete="name" />
+          </label>
+          <label>
+            Card number
+            <input id="card" name="card" inputmode="numeric" autocomplete="cc-number" />
+          </label>
+          <label>
+            ZIP code
+            <input id="zip" name="zip" inputmode="numeric" autocomplete="postal-code" />
+          </label>
+          <p id="form-error" class="form-error" role="alert"></p>
+          <button id="place-order" type="submit">Place order</button>
+        </form>
+      </section>
+
+      <section id="confirmation" class="band hidden" aria-live="polite">
+        <div class="confirmation">
+          <h2>Order confirmed</h2>
+          <p>Your order number is <strong>ACME-1042</strong>.</p>
+          <a href="/">Start over</a>
+        </div>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
+

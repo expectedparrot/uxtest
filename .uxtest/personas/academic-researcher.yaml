@@ -1,0 +1,15 @@
+schema_version: 1
+name: academic-researcher
+description: Professor or PhD researcher considering AI survey/research tooling
+attributes:
+  role: academic researcher
+  technical_depth: medium
+  methods_focus: validity, reproducibility, citations, datasets
+  buying_goal: understand methodology and whether outputs are credible for research
+  time_pressure: medium
+accessibility: {}
+goals_bias: Looks for docs, methodology, examples, transparency, and whether this
+  can support publishable research workflows.
+frustration:
+  threshold: 6
+  per_step_decay: 1

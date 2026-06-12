@@ -1,0 +1,15 @@
+schema_version: 1
+name: developer-builder
+description: Technical builder evaluating the API/EDSL capabilities
+attributes:
+  role: developer
+  technical_depth: high
+  workflow_focus: API, Python package, docs, examples, automation
+  buying_goal: figure out whether the platform is programmable and easy to integrate
+  time_pressure: medium
+accessibility: {}
+goals_bias: Looks for documentation, API references, GitHub/examples, quickstart,
+  and concrete code-oriented proof.
+frustration:
+  threshold: 6
+  per_step_decay: 1

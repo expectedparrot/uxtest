@@ -1,0 +1,35 @@
+id: northstar-saas
+name: Northstar SaaS Fixture
+comparison_title: Northstar SaaS Fixture Regression
+comparison_output: northstar-saas-fixture-regression.html
+server:
+  host: 127.0.0.1
+  port: 8776
+  command:
+    - python
+    - ./server.py
+    - --host
+    - "{host}"
+    - --port
+    - "{port}"
+url_template: http://{host}:{port}/?variant={variant}
+study_title: Northstar SaaS Fixture ({variant})
+task: >
+  You are evaluating Northstar, a B2B research platform. Figure out which
+  product area you would explore next and identify anything confusing.
+success_criteria: The product areas, docs route, or quickstart route have been inspected.
+personas:
+  - mobile-first
+runs_per_persona: 1
+driver: scripted
+device: iphone
+max_steps: 6
+max_concurrent_runs: 1
+keep_runs: 3
+analysis_driver: local
+animation_delay: 250
+animation_max_width: 520
+expected_flaws: expected_flaws.yaml
+variants:
+  - name: flawed
+  - name: clear

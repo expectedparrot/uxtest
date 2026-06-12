@@ -1,0 +1,22 @@
+schema_version: 1
+project_name: uxtest-example
+base_url: http://127.0.0.1:8765/?variant=confusing
+defaults:
+  model: gpt-4o
+  temperature: 0.7
+  max_steps: 30
+  viewport:
+    width: 1280
+    height: 800
+  screenshot: full
+  screenshot_format: png
+  screenshot_quality: 80
+  a11y_audit: true
+  runs_per_persona: 1
+browser:
+  engine: chromium
+  headless: true
+  slow_mo_ms: 0
+secrets:
+  env_file: secrets.env
+  redact_patterns: []

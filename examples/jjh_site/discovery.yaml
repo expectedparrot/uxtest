@@ -1,0 +1,35 @@
+id: jjh-academic-site-discovery
+name: John Horton Academic Site Discovery
+mode: live-site
+comparison_title: John Horton Academic Website Desktop vs Mobile
+comparison_output: jjh-academic-site-discovery.html
+url_template: https://john-joseph-horton.com/
+study_title: John Horton Academic Site Discovery ({variant})
+task: >
+  You are visiting John J. Horton's academic website for the first time.
+  Starting from the homepage, figure out whether this person is relevant to
+  your goal. Find the most useful next item you would click or read, explain
+  what you learned, and call out anything that makes the site hard to scan,
+  trust, or act on.
+success_criteria: >
+  The visitor identifies a relevant paper, research area, talk, media item, or
+  contact/collaboration signal and can explain what they would do next.
+personas:
+  - prospective-phd-student
+  - research-collaborator
+  - journalist-policy-analyst
+  - conference-organizer
+runs_per_persona: 1
+driver: edsl
+max_steps: 8
+max_concurrent_runs: 2
+keep_runs: 12
+analysis_driver: local
+eval_policy: report_only
+animation_delay: 250
+animation_max_width: 640
+variants:
+  - name: desktop
+    device: desktop
+  - name: mobile
+    device: iphone

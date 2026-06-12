@@ -1,0 +1,16 @@
+schema_version: 1
+name: seniors
+description: Desktop shopper with moderate web familiarity
+attributes:
+  age_range:
+  - 35
+  - 55
+  tech_literacy: medium
+  reading_style: skims
+  patience: medium
+  device_familiarity: desktop
+accessibility: {}
+goals_bias: Prefers clear labels, predictable checkout steps, and helpful error messages.
+frustration:
+  threshold: 7
+  per_step_decay: 1

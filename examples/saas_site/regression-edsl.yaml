@@ -1,0 +1,42 @@
+id: northstar-saas-edsl
+name: Northstar SaaS EDSL Fixture
+mode: edsl-personas
+comparison_title: Northstar SaaS EDSL Persona Regression
+comparison_output: northstar-saas-edsl-regression.html
+server:
+  host: 127.0.0.1
+  port: 8776
+  command:
+    - python
+    - ./server.py
+    - --host
+    - "{host}"
+    - --port
+    - "{port}"
+url_template: http://{host}:{port}/?variant={variant}
+study_title: Northstar SaaS EDSL ({variant})
+task: >
+  You are evaluating Expected Parrot's Northstar-style product page as a
+  potential customer. Figure out which product or resource you would click next,
+  and call out anything confusing or misleading as you try to learn what the
+  product does.
+success_criteria: The persona has inspected at least one product area or resource and can explain what they would do next.
+personas:
+  - mobile-first
+  - low-confidence
+  - price-sensitive
+runs_per_persona: 1
+driver: edsl
+device: iphone
+max_steps: 6
+max_concurrent_runs: 2
+keep_runs: 6
+analysis_driver: local
+animation_delay: 250
+animation_max_width: 520
+expected_flaws: expected_flaws.yaml
+eval_policy: threshold
+minimum_recovered_expected: 1
+variants:
+  - name: flawed
+  - name: clear

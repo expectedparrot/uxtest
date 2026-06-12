@@ -1,0 +1,15 @@
+schema_version: 1
+name: startup-founder
+description: Founder evaluating tools for fast customer and market research
+attributes:
+  role: startup founder
+  company_stage: seed
+  technical_depth: medium
+  buying_goal: learn whether this can replace ad hoc surveys and interviews
+  time_pressure: high
+accessibility: {}
+goals_bias: Looks for concrete product value, examples, pricing, and a fast way to
+  try the tool without a sales call.
+frustration:
+  threshold: 6
+  per_step_decay: 1

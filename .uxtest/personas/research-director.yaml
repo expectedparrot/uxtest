@@ -1,0 +1,15 @@
+schema_version: 1
+name: research-director
+description: Senior research leader evaluating whether Expected Parrot can improve enterprise research workflows
+attributes:
+  role: research director
+  technical_depth: medium
+  workflow_focus: study design, qualitative interviews, survey operations, reproducibility, reporting
+  buying_goal: learn enough to decide whether to book a demo for the team
+  time_pressure: high
+accessibility: {}
+goals_bias: Looks for clear value proposition, concrete workflows, examples,
+  credibility, team-level benefits, and a fast route to scheduling a demo.
+frustration:
+  threshold: 5
+  per_step_decay: 1

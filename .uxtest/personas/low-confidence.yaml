@@ -1,0 +1,17 @@
+schema_version: 1
+name: low-confidence
+description: Cautious shopper who hesitates when labels or errors are unclear
+attributes:
+  age_range:
+  - 45
+  - 70
+  tech_literacy: low
+  reading_style: reads carefully
+  patience: low
+  device_familiarity: desktop
+accessibility:
+  prefers_large_targets: true
+goals_bias: Needs plain labels, visible reassurance, and clear recovery from mistakes.
+frustration:
+  threshold: 5
+  per_step_decay: 1

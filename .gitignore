@@ -1,0 +1,13 @@
+.env
+.uxtest/cache/
+.uxtest/locks/
+.uxtest/comparisons/
+.uxtest/studies/*/runs/
+.uxtest/studies/*/analysis/report.html
+.uxtest/studies/*/analysis/log.html
+__pycache__/
+.pytest_cache/
+.venv/
+*.egg-info/
+*.pyc
+.DS_Store

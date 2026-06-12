@@ -1,0 +1,14 @@
+schema_version: 1
+name: journalist-policy-analyst
+description: Journalist or policy analyst seeking explainable expertise and quotable work
+attributes:
+  role: journalist or policy analyst
+  topic_interest: AI and labor markets
+  technical_depth: low
+  time_pressure: high
+accessibility: {}
+goals_bias: Looks for plain-language summaries, media links, contact signals, recent
+  talks, and papers that connect clearly to current public debates.
+frustration:
+  threshold: 5
+  per_step_decay: 1
