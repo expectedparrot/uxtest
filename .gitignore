@@ -1,4 +1,5 @@
 .env
+.uxtest/
 .uxtest/cache/
 .uxtest/locks/
 .uxtest/comparisons/
