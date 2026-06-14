@@ -5,6 +5,7 @@
 .uxtest/studies/*/runs/
 .uxtest/studies/*/analysis/report.html
 .uxtest/studies/*/analysis/log.html
+.docs-html/
 __pycache__/
 .pytest_cache/
 .venv/

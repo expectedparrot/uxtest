@@ -250,6 +250,11 @@ def _fixture_run_overrides(fixture: dict[str, Any], variant_spec: dict[str, Any]
     for source in (fixture.get("overrides"), variant_spec.get("overrides")):
         if isinstance(source, dict):
             overrides.update(source)
+    for key in ("setup_steps", "auth_state", "env_file", "redact_patterns", "secrets"):
+        if key in fixture:
+            overrides[key] = fixture[key]
+        if key in variant_spec:
+            overrides[key] = variant_spec[key]
     return overrides or None
 
 

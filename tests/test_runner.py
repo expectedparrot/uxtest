@@ -4,6 +4,8 @@ from pathlib import Path
 
 from uxtest import runner
 from uxtest.cli import _parse_viewport
+from uxtest.fixtures import _fixture_run_overrides
+from uxtest.runner import _redact_text, _redacted_setup_action, _setup_step_value
 from uxtest.store import Store, read_yaml
 
 
@@ -104,3 +106,37 @@ def test_run_study_applies_transient_run_overrides(tmp_path, monkeypatch):
 
 def test_parse_viewport():
     assert _parse_viewport("390x844") == {"width": 390, "height": 844}
+
+
+def test_fixture_run_overrides_include_auth_setup_fields():
+    overrides = _fixture_run_overrides(
+        {
+            "device": "desktop",
+            "setup_steps": [{"type": "type", "name": "email", "env": "TEST_EMAIL"}],
+            "auth_state": {"save": ".uxtest/auth/example.json"},
+            "redact_patterns": ["secret-[0-9]+"],
+        },
+        {"name": "default"},
+    )
+
+    assert overrides["setup_steps"][0]["env"] == "TEST_EMAIL"
+    assert overrides["auth_state"]["save"] == ".uxtest/auth/example.json"
+    assert overrides["redact_patterns"] == ["secret-[0-9]+"]
+    assert overrides["viewport"] == {"width": 1280, "height": 800}
+
+
+def test_setup_step_value_reads_env_and_redacts(monkeypatch):
+    monkeypatch.setenv("UXTEST_PASSWORD", "super-secret")
+    step = {"type": "type", "name": "password", "env": "UXTEST_PASSWORD", "sensitive": True}
+
+    value = _setup_step_value(step)
+    action = _redacted_setup_action(step, action_type="type", value=value, sensitive=True, config={})
+
+    assert value == "super-secret"
+    assert action["value"] == "[REDACTED]"
+    assert action["text"] == "[REDACTED]"
+    assert action["env"] == "UXTEST_PASSWORD"
+
+
+def test_redact_text_applies_patterns():
+    assert _redact_text("token=abc123", {"redact_patterns": ["abc[0-9]+"]}) == "token=[REDACTED]"

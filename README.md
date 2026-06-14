@@ -70,6 +70,17 @@ uv run uxtest ci examples/jjh_site/discovery.yaml
 uv run uxtest ci examples/jjh_site/targeted.yaml
 ```
 
+### Study Type Guides
+
+Worked examples for common UXR jobs live under:
+
+- [UXR Study Type Examples](examples/study_types/README.md)
+- [Task Discovery Study](examples/study_types/task_discovery/README.md)
+
+Start with Task Discovery when you want to test whether first-time visitors can
+understand what a page is for, choose a plausible first action, and explain what
+is confusing or missing before they act.
+
 ### Create a One-Off Study
 
 Use this when there is no fixture yet:
@@ -112,6 +123,65 @@ variants:
 ```
 
 Supported built-ins are `desktop`, `iphone`, and `pixel`.
+
+### Sign-In And Authenticated Flows
+
+For multi-step sign-in flows, prefer deterministic `setup_steps` before EDSL
+takes over. Setup steps can read credentials from environment variables and
+redact sensitive typed values from setup trace events.
+
+Example fixture fragment:
+
+```yaml
+env_file: secrets.env
+redact_patterns:
+  - "test-user-[^\\s]+"
+  - "s3cr3t-[^\\s]+"
+auth_state:
+  save: .uxtest/auth/example-user.json
+setup_steps:
+  - type: click
+    label: Log in
+  - type: type
+    name: email
+    env: TEST_USER_EMAIL
+    sensitive: true
+  - type: type
+    name: password
+    env: TEST_USER_PASSWORD
+    sensitive: true
+  - type: click
+    label: Continue
+```
+
+To start a later study already signed in, load the saved Playwright storage
+state:
+
+```yaml
+auth_state:
+  load: .uxtest/auth/example-user.json
+```
+
+Setup step selectors:
+
+- `selector`: CSS selector
+- `name`: input/select name or id
+- `placeholder`: input placeholder
+- `label`: button/text label
+
+Supported setup step actions:
+
+- `click`
+- `type`
+- `select`
+- `wait`
+- `back`
+- `scroll`
+- `find`
+
+Do not use real user credentials. Use staging/test accounts, static OTPs, or a
+test auth bypass. CAPTCHA and live MFA still need a test bypass or a future
+manual/hook mechanism.
 
 ## Fixture Shape
 

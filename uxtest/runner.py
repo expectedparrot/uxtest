@@ -188,6 +188,11 @@ def _run_once(
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless, slow_mo=slow_mo_ms)
+        _load_env(Path.cwd() / ".env")
+        _load_env(store.root / ".env")
+        env_file = resolved_config.get("env_file") or ((resolved_config.get("secrets") or {}).get("env_file") if isinstance(resolved_config.get("secrets"), dict) else None)
+        if env_file:
+            _load_env(_resolve_project_path(store.root, str(env_file)))
         viewport_config = resolved_config.get("viewport", {})
         page_options: dict[str, Any] = {
             "viewport": {
@@ -203,9 +208,18 @@ def _run_once(
             page_options["has_touch"] = bool(resolved_config["has_touch"])
         if resolved_config.get("user_agent"):
             page_options["user_agent"] = str(resolved_config["user_agent"])
-        page = browser.new_page(**page_options)
+        auth_state = resolved_config.get("auth_state")
+        if isinstance(auth_state, dict) and auth_state.get("load"):
+            state_path = _resolve_project_path(store.root, str(auth_state["load"]))
+            if state_path.exists():
+                page_options["storage_state"] = str(state_path)
+        context = browser.new_context(**page_options)
+        page = context.new_page()
         try:
             page.goto(str(study["url"]), wait_until="networkidle")
+            setup_steps = resolved_config.get("setup_steps")
+            if isinstance(setup_steps, list) and setup_steps:
+                _execute_setup_steps(page, run_dir, trace_path, setup_steps, resolved_config)
             recent_events: list[dict[str, Any]] = []
             repeated_action_count = 0
             last_action_key: tuple[Any, ...] | None = None
@@ -225,7 +239,7 @@ def _run_once(
                     decision.status = "gave_up"
                     decision.thinking = f"{decision.thinking}\nStopped after repeating the same action {repeated_action_count} times."
                 result = _execute_action(page, state, decision.action)
-                event = _trace_event(step, state, decision, result)
+                event = _trace_event(step, state, decision, result, resolved_config)
                 _append_jsonl(trace_path, event)
                 recent_events.append(_compact_trace_event(event))
                 recent_events = recent_events[-5:]
@@ -243,12 +257,17 @@ def _run_once(
             outcome_detail = str(exc)
             raise
         finally:
+            if isinstance(resolved_config.get("auth_state"), dict) and resolved_config["auth_state"].get("save"):
+                state_path = _resolve_project_path(store.root, str(resolved_config["auth_state"]["save"]))
+                state_path.parent.mkdir(parents=True, exist_ok=True)
+                context.storage_state(path=str(state_path))
             meta["finished_at"] = utc_now()
             meta["outcome"] = outcome
             meta["outcome_detail"] = outcome_detail
             meta["steps_taken"] = _count_trace_lines(trace_path)
             meta["final_url"] = page.url if not page.is_closed() else None
             atomic_write_json(meta_path, meta)
+            context.close()
             browser.close()
 
     return run_dir
@@ -909,6 +928,45 @@ def _jsonable(value: Any) -> Any:
     return str(value)
 
 
+def _redact_obj(value: Any, *, config: dict[str, Any], force_redact: set[str] | None = None, key: str | None = None) -> Any:
+    force_redact = force_redact or set()
+    if key in force_redact:
+        return "[REDACTED]"
+    if isinstance(value, str):
+        return _redact_text(value, config)
+    if value is None or isinstance(value, (int, float, bool)):
+        return value
+    if isinstance(value, list):
+        return [_redact_obj(item, config=config, force_redact=force_redact) for item in value]
+    if isinstance(value, tuple):
+        return [_redact_obj(item, config=config, force_redact=force_redact) for item in value]
+    if isinstance(value, dict):
+        return {
+            str(item_key): _redact_obj(item_value, config=config, force_redact=force_redact, key=str(item_key))
+            for item_key, item_value in value.items()
+        }
+    return _redact_text(str(value), config)
+
+
+def _redact_text(text: str, config: dict[str, Any]) -> str:
+    redacted = text
+    patterns: list[str] = []
+    configured = config.get("redact_patterns")
+    if isinstance(configured, list):
+        patterns.extend(str(item) for item in configured)
+    secrets = config.get("secrets")
+    if isinstance(secrets, dict) and isinstance(secrets.get("redact_patterns"), list):
+        patterns.extend(str(item) for item in secrets["redact_patterns"])
+    for pattern in patterns:
+        if not pattern:
+            continue
+        try:
+            redacted = re.sub(pattern, "[REDACTED]", redacted)
+        except re.error:
+            redacted = redacted.replace(pattern, "[REDACTED]")
+    return redacted
+
+
 def _find_element(elements: list[dict[str, Any]], *, label: str | None = None, name: str | None = None) -> dict[str, Any] | None:
     for element in elements:
         if name and element.get("name") == name:
@@ -916,6 +974,122 @@ def _find_element(elements: list[dict[str, Any]], *, label: str | None = None, n
         if label and label in str(element.get("label", "")).lower():
             return element
     return None
+
+
+def _execute_setup_steps(page: Any, run_dir: Path, trace_path: Path, steps: list[Any], config: dict[str, Any]) -> None:
+    for index, raw_step in enumerate(steps, start=1):
+        if not isinstance(raw_step, dict):
+            raise StoreError(f"setup_steps[{index}] must be a mapping.", exit_code=2)
+        step = dict(raw_step)
+        action_type = str(step.get("type") or "").lower()
+        if action_type not in {"click", "type", "select", "wait", "back", "find", "scroll"}:
+            raise StoreError(f"Unsupported setup step type {action_type!r}.", exit_code=2)
+        sensitive = bool(step.get("sensitive")) or bool(step.get("env")) or action_type == "type" and _setup_step_looks_sensitive(step)
+        value = _setup_step_value(step)
+        before_url = page.url
+        ok = True
+        error = None
+        try:
+            if action_type == "wait":
+                page.wait_for_timeout(int(step.get("ms") or 750))
+            elif action_type == "back":
+                page.go_back(wait_until="networkidle")
+            elif action_type == "scroll":
+                page.mouse.wheel(0, int(step.get("dy") or 700))
+                page.wait_for_timeout(300)
+            elif action_type == "find":
+                ok = _find_text_on_page(page, str(step.get("text") or value or ""))
+            else:
+                locator = _setup_locator(page, step)
+                if action_type == "click":
+                    locator.click(timeout=5000)
+                elif action_type == "type":
+                    locator.fill(value, timeout=5000)
+                elif action_type == "select":
+                    locator.select_option(value, timeout=5000)
+            _wait_after_action(page, before_url)
+        except Exception as exc:
+            ok = False
+            error = str(exc)
+        event = {
+            "schema_version": 1,
+            "event_type": "setup_step",
+            "step": f"setup-{index:03d}",
+            "ts": utc_now(),
+            "url": before_url,
+            "page_title": _safe_page_title(page),
+            "action": _redacted_setup_action(step, action_type=action_type, value=value, sensitive=sensitive, config=config),
+            "result": {
+                "ok": ok,
+                "navigation": page.url != before_url,
+                "final_url": page.url,
+                "console_errors": 0,
+                **({"error": error} if error else {}),
+            },
+            "thinking": "Deterministic setup step executed before model-controlled browser actions.",
+            "frustration": 0,
+            "status": "continue",
+        }
+        _append_jsonl(trace_path, event)
+        if not ok:
+            raise StoreError(f"Setup step {index} failed: {error}", exit_code=1)
+
+
+def _setup_step_value(step: dict[str, Any]) -> str:
+    if step.get("env"):
+        name = str(step["env"])
+        if name not in os.environ:
+            raise StoreError(f"Setup step references missing env var {name!r}.", exit_code=2)
+        return os.environ[name]
+    return str(step.get("value") or step.get("text") or "")
+
+
+def _setup_step_looks_sensitive(step: dict[str, Any]) -> bool:
+    text = " ".join(str(step.get(key) or "") for key in ("selector", "name", "label", "placeholder", "text", "value")).lower()
+    return any(token in text for token in ("password", "secret", "token", "otp", "mfa", "code", "email"))
+
+
+def _setup_locator(page: Any, step: dict[str, Any]) -> Any:
+    if step.get("selector"):
+        return page.locator(str(step["selector"])).first
+    if step.get("name"):
+        name = str(step["name"])
+        return page.locator(f'[name="{_css_escape(name)}"], input[id="{_css_escape(name)}"], textarea[id="{_css_escape(name)}"]').first
+    if step.get("placeholder"):
+        return page.get_by_placeholder(str(step["placeholder"])).first
+    if step.get("label"):
+        label = str(step["label"])
+        try:
+            return page.get_by_role("button", name=re.compile(re.escape(label), re.I)).first
+        except Exception:
+            return page.get_by_text(label, exact=False).first
+    raise StoreError("Setup step requires selector, name, placeholder, or label.", exit_code=2)
+
+
+def _redacted_setup_action(step: dict[str, Any], *, action_type: str, value: str, sensitive: bool, config: dict[str, Any]) -> dict[str, Any]:
+    action = {
+        "type": action_type,
+        "selector": step.get("selector"),
+        "name": step.get("name"),
+        "label": step.get("label"),
+        "placeholder": step.get("placeholder"),
+        "text": step.get("text"),
+        "value": value,
+        "env": step.get("env"),
+        "sensitive": sensitive,
+    }
+    return _redact_obj(action, config=config, force_redact={"value", "text"} if sensitive else set())
+
+
+def _css_escape(value: str) -> str:
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _safe_page_title(page: Any) -> str:
+    try:
+        return page.title()
+    except Exception:
+        return ""
 
 
 def _execute_action(page: Any, state: dict[str, Any], action: BrowserAction) -> dict[str, Any]:
@@ -1007,7 +1181,7 @@ def _wait_after_action(page: Any, before_url: str) -> None:
     _settle_page(page)
 
 
-def _trace_event(step: int, state: dict[str, Any], decision: BrowserDecision, result: dict[str, Any]) -> dict[str, Any]:
+def _trace_event(step: int, state: dict[str, Any], decision: BrowserDecision, result: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "event_type": "step",
@@ -1028,10 +1202,10 @@ def _trace_event(step: int, state: dict[str, Any], decision: BrowserDecision, re
             "thinking": decision.thinking,
             "frustration": decision.frustration,
             "status": decision.status,
-            "raw_response": decision.raw_response,
-            "edsl": decision.edsl,
+            "raw_response": _redact_obj(decision.raw_response, config=config),
+            "edsl": _redact_obj(decision.edsl, config=config),
         },
-        "action": decision.action.model_dump(),
+        "action": _redact_obj(decision.action.model_dump(), config=config),
         "result": result,
         "thinking": decision.thinking,
         "frustration": decision.frustration,
@@ -1092,6 +1266,11 @@ def _load_env(path: Path) -> None:
             continue
         key, value = line.split("=", 1)
         os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+def _resolve_project_path(project_root: Path, value: str) -> Path:
+    path = Path(value).expanduser()
+    return path if path.is_absolute() else project_root / path
 
 
 def _parse_json_object(text: str) -> dict[str, Any]:
