@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Northstar Research</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/">Northstar Research</a>
+      <nav class="desktop-nav" aria-label="Primary">
+        <button id="products-button" type="button" aria-expanded="false">Products</button>
+        <a href="/pricing" data-route="pricing">Pricing</a>
+        <a href="/docs" data-route="docs">Docs</a>
+        <a href="/security" data-route="security">Security</a>
+      </nav>
+      <a class="login-link" href="/login" data-route="login">Log in / Sign up</a>
+      <button id="mobile-menu" class="mobile-menu" type="button">
+        <span></span><span></span><span></span>
+      </button>
+    </header>
+
+    <div id="product-menu" class="product-menu hidden">
+      <article>
+        <h2>Study Designer</h2>
+        <p>Draft surveys, experiments, and interview guides.</p>
+        <a href="/designer" data-route="designer">Overview</a>
+        <a href="/examples" data-route="examples">Examples</a>
+      </article>
+      <article>
+        <h2>Interview Lab</h2>
+        <p>Run AI-moderated qualitative interviews.</p>
+        <a href="/interview-lab" data-route="interview-lab">How it works</a>
+        <a href="/examples" data-route="examples">Examples</a>
+      </article>
+      <article>
+        <h2>API & SDK</h2>
+        <p>Build research workflows in code.</p>
+        <a href="/docs" data-route="docs">Docs</a>
+        <a href="/quickstart" data-route="quickstart">Quickstart</a>
+      </article>
+    </div>
+
+    <main id="app" tabindex="-1"></main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

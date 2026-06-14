@@ -1,0 +1,63 @@
+id: expectedparrot-enterprise-demo
+name: Expected Parrot Enterprise Demo Intent
+mode: live-site-targeted
+comparison_title: Expected Parrot Enterprise Demo Intent Study
+comparison_output: expectedparrot-enterprise-demo.html
+url_template: https://www.expectedparrot.com/
+study_title: Expected Parrot Enterprise Demo Intent ({variant})
+task: >
+  Starting from the Expected Parrot homepage, evaluate whether the product is
+  credible and relevant enough for an enterprise buyer to schedule a demo.
+  Find the most useful evidence, identify anything missing or confusing, and
+  stop when you know whether you would schedule a demo or what you would need
+  before doing so.
+success_criteria: >
+  The visitor learns what Expected Parrot does for enterprise research work and
+  finds a clear path to schedule a demo, contact sales, request access, or take
+  the next enterprise buying step.
+runs_per_persona: 1
+driver: edsl
+max_steps: 8
+max_concurrent_runs: 2
+keep_runs: 10
+analysis_driver: local
+eval_policy: report_only
+animation_delay: 250
+animation_max_width: 640
+variants:
+  - name: insights-lead-desktop
+    device: desktop
+    personas:
+      - enterprise-insights-lead
+    task: >
+      You are an enterprise insights leader evaluating Expected Parrot for a
+      larger research organization. Starting from the homepage, learn what the
+      platform does, look for enterprise credibility and a clear demo/contact
+      path, then stop when you can say whether you would schedule a demo.
+  - name: research-director-mobile
+    device: iphone
+    personas:
+      - research-director
+    task: >
+      You are a research director on mobile between meetings. Starting from the
+      homepage, quickly decide whether Expected Parrot could help your team run
+      better research studies. Look for the clearest value proposition,
+      examples, and route to a demo or next buying step.
+  - name: survey-ops-desktop
+    device: desktop
+    personas:
+      - survey-ops-manager
+    task: >
+      You are a survey operations manager evaluating whether Expected Parrot can
+      fit into enterprise research operations. Starting from the homepage, look
+      for workflow details, quality controls, examples, and a route to schedule
+      a demo or discuss implementation.
+  - name: procurement-desktop
+    device: desktop
+    personas:
+      - enterprise-procurement-lead
+    task: >
+      You are a procurement and security stakeholder checking whether Expected
+      Parrot is credible enough to enter vendor review. Starting from the
+      homepage, look for trust, support, pricing/procurement, security, and a
+      clear contact or demo path.

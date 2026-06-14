@@ -1,0 +1,60 @@
+id: jjh-academic-site-targeted
+name: John Horton Academic Site Targeted Tasks
+mode: live-site-targeted
+comparison_title: John Horton Academic Website Targeted Task Checks
+comparison_output: jjh-academic-site-targeted.html
+url_template: https://john-joseph-horton.com/
+study_title: John Horton Targeted Task ({variant})
+task: >
+  Starting from John J. Horton's homepage, complete the assigned visitor task
+  and stop when you can explain the best next action.
+success_criteria: >
+  The visitor finds task-relevant evidence on the site or a linked resource and
+  can explain a concrete next action.
+runs_per_persona: 1
+driver: edsl
+max_steps: 6
+max_concurrent_runs: 2
+keep_runs: 8
+analysis_driver: local
+eval_policy: report_only
+animation_delay: 250
+animation_max_width: 640
+variants:
+  - name: phd-fit-mobile
+    device: iphone
+    personas:
+      - prospective-phd-student
+    task: >
+      You are a prospective PhD student interested in AI, labor markets, and
+      market design. Starting from the homepage, decide whether John J. Horton
+      looks like a strong research-fit advisor or committee member. Find one
+      specific research item that supports your decision, then stop and explain
+      what you would do next.
+  - name: collaborator-current-work-desktop
+    device: desktop
+    personas:
+      - research-collaborator
+    task: >
+      You are an academic collaborator looking for overlap on AI methods,
+      online labor markets, or experiments. Starting from the homepage, find a
+      recent or especially relevant paper, inspect the most useful linked
+      version, then stop and explain whether there is collaboration fit.
+  - name: journalist-contact-desktop
+    device: desktop
+    personas:
+      - journalist-policy-analyst
+    task: >
+      You are a journalist or policy analyst writing about AI and labor
+      markets. Starting from the homepage, find one plain-language or quotable
+      signal of expertise and look for a practical way to contact or cite John
+      J. Horton. Stop when you can explain the best next action.
+  - name: talk-invite-mobile
+    device: iphone
+    personas:
+      - conference-organizer
+    task: >
+      You are organizing a seminar on economics of AI and online labor markets.
+      Starting from the homepage on mobile, decide whether John J. Horton is a
+      plausible invited speaker. Find evidence from research, talks, slides, or
+      credentials, then stop and explain what you would do next.

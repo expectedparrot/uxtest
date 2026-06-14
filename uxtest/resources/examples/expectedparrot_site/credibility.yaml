@@ -1,0 +1,32 @@
+id: expectedparrot-credibility
+name: Expected Parrot Company Credibility Check
+mode: live-site-targeted
+comparison_title: Expected Parrot Company Credibility Study
+comparison_output: expectedparrot-credibility.html
+url_template: https://www.expectedparrot.com/
+study_title: Expected Parrot Credibility ({variant})
+task: >
+  You are evaluating Expected Parrot as an enterprise risk and vendor-review
+  stakeholder. Starting from the homepage, look specifically for evidence that
+  Expected Parrot is a serious, credible company: company background, team,
+  customer proof, security/procurement signals, support, contact paths, or other
+  trust evidence. Stop when you can explain whether the company looks credible
+  enough to continue enterprise evaluation, and what evidence is missing.
+success_criteria: >
+  The visitor finds enough company credibility or trust evidence to decide
+  whether Expected Parrot should proceed to enterprise vendor review, and can
+  name any missing evidence.
+runs_per_persona: 1
+driver: edsl
+max_steps: 8
+max_concurrent_runs: 1
+keep_runs: 6
+analysis_driver: local
+eval_policy: report_only
+animation_delay: 250
+animation_max_width: 640
+variants:
+  - name: risk-reviewer-desktop
+    device: desktop
+    personas:
+      - enterprise-risk-reviewer

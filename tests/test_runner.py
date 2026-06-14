@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from uxtest import runner
-from uxtest.cli import _parse_viewport
+from uxtest.cli import _doc_resource, _example_resource, _parse_viewport, _resource_files
 from uxtest.fixtures import _fixture_run_overrides
 from uxtest.runner import _redact_text, _redacted_setup_action, _setup_step_value
 from uxtest.store import Store, read_yaml
@@ -140,3 +140,15 @@ def test_setup_step_value_reads_env_and_redacts(monkeypatch):
 
 def test_redact_text_applies_patterns():
     assert _redact_text("token=abc123", {"redact_patterns": ["abc[0-9]+"]}) == "token=[REDACTED]"
+
+
+def test_bundled_docs_and_examples_are_discoverable():
+    docs = _resource_files("docs", suffixes=(".md",))
+    examples = _resource_files("examples")
+
+    assert "README.md" in docs
+    assert "study_types/task_discovery/README.md" in docs
+    assert "expectedparrot_site/enterprise-demo.yaml" in examples
+    assert _doc_resource("task-discovery").is_file()
+    assert _doc_resource("conversion-path-testing").is_file()
+    assert _example_resource("expectedparrot-enterprise-demo").is_file()

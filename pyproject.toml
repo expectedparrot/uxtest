@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "uxtest"
 version = "0.1.0"
 description = "Synthetic-user UX studies against live web applications"
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "edsl",
@@ -22,9 +23,10 @@ uxtest = "uxtest.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
+include = ["uxtest*"]
 
-[tool.uv.sources]
-edsl = { path = "../../../edsl", editable = true }
+[tool.setuptools.package-data]
+uxtest = ["resources/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

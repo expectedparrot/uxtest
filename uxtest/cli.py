@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
+import shutil
 import socket
 import subprocess
 import sys
 import time
+from importlib import resources
 from pathlib import Path
+from typing import Any
 
+from . import __version__
 from .store import Store, StoreError, find_store
 
 
@@ -23,6 +28,7 @@ def main(argv: list[str] | None = None) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="uxtest")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--store", help="Path to .uxtest or its project root.")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -33,11 +39,22 @@ def build_parser() -> argparse.ArgumentParser:
     init.set_defaults(func=cmd_init)
 
     persona = sub.add_parser("persona", help="Manage personas.")
-    persona_sub = persona.add_subparsers(dest="persona_command", required=True)
+    persona_sub = persona.add_subparsers(dest="persona_command")
     persona_new = persona_sub.add_parser("new", help="Create a persona template.")
     persona_new.add_argument("name")
     persona_new.add_argument("--description")
     persona_new.set_defaults(func=cmd_persona_new)
+    persona_list = persona_sub.add_parser("list", help="List personas.")
+    persona_list.add_argument("--json", action="store_true")
+    persona_list.set_defaults(func=cmd_persona_list)
+    persona_show = persona_sub.add_parser("show", help="Show a persona YAML document.")
+    persona_show.add_argument("name")
+    persona_show.add_argument("--json", action="store_true")
+    persona_show.set_defaults(func=cmd_persona_show)
+    persona_path = persona_sub.add_parser("path", help="Print a persona YAML path.")
+    persona_path.add_argument("name")
+    persona_path.set_defaults(func=cmd_persona_path)
+    persona.set_defaults(func=cmd_persona_list)
 
     study = sub.add_parser("study", help="Manage studies.")
     study_sub = study.add_subparsers(dest="study_command", required=True)
@@ -86,6 +103,12 @@ def build_parser() -> argparse.ArgumentParser:
     show.add_argument("--json", action="store_true")
     show.set_defaults(func=cmd_show)
 
+    trace = sub.add_parser("trace", help="Summarize study traces and EDSL remote jobs.")
+    trace.add_argument("id")
+    trace.add_argument("--json", action="store_true")
+    trace.add_argument("--edsl-jobs", action="store_true", help="Show EDSL remote job metadata instead of step summaries.")
+    trace.set_defaults(func=cmd_trace)
+
     analyze = sub.add_parser("analyze", help="Analyze a study and write analysis JSON.")
     analyze.add_argument("id")
     analyze.add_argument("--include-interrupted", action="store_true")
@@ -95,6 +118,32 @@ def build_parser() -> argparse.ArgumentParser:
     uxr = sub.add_parser("uxr", help="Generate UXR-facing study artifacts from analysis outputs.")
     uxr.add_argument("id")
     uxr.set_defaults(func=cmd_uxr)
+
+    report = sub.add_parser("report", help="Generate a narrative report from study traces and analysis.")
+    report.add_argument("id")
+    report.add_argument("--format", action="append", help="Report format: md, html, pdf, or comma-separated list. Defaults to md.")
+    report.add_argument("--output-dir", type=Path, help="Output directory. Defaults to the study analysis directory.")
+    report.add_argument("--no-embed-resources", action="store_true", help="Do not ask pandoc to embed resources in HTML output.")
+    report.set_defaults(func=cmd_report)
+
+    humanize_export = sub.add_parser("humanize-export", help="Export an EDSL humanize script from study screenshots.")
+    humanize_export.add_argument("id")
+    humanize_export.add_argument(
+        "--template",
+        choices=["task-discovery", "credibility", "conversion", "comprehension"],
+        default="task-discovery",
+        help="Question template for the human screenshot survey.",
+    )
+    humanize_export.add_argument(
+        "--screenshots",
+        choices=["representative", "first", "last", "first-last", "high-frustration", "confusing", "all"],
+        default="representative",
+        help="Which trace screenshots to include.",
+    )
+    humanize_export.add_argument("--max-screenshots", type=int, default=8)
+    humanize_export.add_argument("--output", type=Path, help="Output Python script path. Defaults to the study analysis directory.")
+    humanize_export.add_argument("--survey-name", help="Default human survey name embedded in the generated script.")
+    humanize_export.set_defaults(func=cmd_humanize_export)
 
     animate = sub.add_parser("animate", help="Generate per-run GIF animations from study screenshots.")
     animate.add_argument("id")
@@ -116,6 +165,37 @@ def build_parser() -> argparse.ArgumentParser:
     ci.add_argument("fixtures", nargs="+", type=Path, help="Fixture YAML file(s) to run.")
     ci.add_argument("--open", action="store_true", help="Open each generated comparison report.")
     ci.set_defaults(func=cmd_ci)
+
+    doctor = sub.add_parser("doctor", help="Check local uxtest, Playwright, pandoc, and EDSL setup.")
+    doctor.add_argument("--json", action="store_true")
+    doctor.set_defaults(func=cmd_doctor)
+
+    docs = sub.add_parser("docs", help="Discover bundled agent documentation.")
+    docs_sub = docs.add_subparsers(dest="docs_command")
+    docs_list = docs_sub.add_parser("list", help="List bundled Markdown docs.")
+    docs_list.set_defaults(func=cmd_docs_list)
+    docs_path = docs_sub.add_parser("path", help="Print a bundled doc path.")
+    docs_path.add_argument("name", nargs="?", default="root", help="Doc name or relative path. Defaults to root.")
+    docs_path.set_defaults(func=cmd_docs_path)
+    docs_show = docs_sub.add_parser("show", help="Print a bundled doc to stdout.")
+    docs_show.add_argument("name", nargs="?", default="root", help="Doc name or relative path. Defaults to root.")
+    docs_show.set_defaults(func=cmd_docs_show)
+    docs_open = docs_sub.add_parser("open", help="Open a bundled doc with the OS default app.")
+    docs_open.add_argument("name", nargs="?", default="root", help="Doc name or relative path. Defaults to root.")
+    docs_open.set_defaults(func=cmd_docs_open)
+    docs.set_defaults(func=cmd_docs_list)
+
+    examples = sub.add_parser("examples", help="Discover bundled example fixtures and study guides.")
+    examples_sub = examples.add_subparsers(dest="examples_command", required=True)
+    examples_list = examples_sub.add_parser("list", help="List bundled example files.")
+    examples_list.set_defaults(func=cmd_examples_list)
+    examples_path = examples_sub.add_parser("path", help="Print a bundled example path.")
+    examples_path.add_argument("name", nargs="?", default="", help="Example relative path or alias.")
+    examples_path.set_defaults(func=cmd_examples_path)
+    examples_copy = examples_sub.add_parser("copy", help="Copy bundled examples into a directory.")
+    examples_copy.add_argument("dest", type=Path, help="Destination directory.")
+    examples_copy.add_argument("--name", default="", help="Example relative path or alias. Defaults to all examples.")
+    examples_copy.set_defaults(func=cmd_examples_copy)
 
     prune = sub.add_parser("prune", help="Prune old run directories for a study.")
     prune.add_argument("id", help="Study id to prune.")
@@ -188,6 +268,42 @@ def cmd_persona_new(args: argparse.Namespace) -> None:
     store = find_store(override=args.store)
     path = store.create_persona(args.name, description=args.description)
     print(path.relative_to(store.root))
+
+
+def cmd_persona_list(args: argparse.Namespace) -> None:
+    store = find_store(override=args.store)
+    personas = []
+    for path in sorted(store.personas_path.glob("*.yaml")):
+        try:
+            data = store.load_persona(path.stem)
+        except StoreError:
+            continue
+        personas.append({"name": path.stem, "description": data.get("description"), "path": str(path.relative_to(store.root))})
+    if getattr(args, "json", False):
+        print(json.dumps(personas, indent=2, sort_keys=True))
+        return
+    if not personas:
+        print("No personas.")
+        return
+    for persona in personas:
+        description = f"  {persona['description']}" if persona.get("description") else ""
+        print(f"{persona['name']}{description}")
+
+
+def cmd_persona_show(args: argparse.Namespace) -> None:
+    store = find_store(override=args.store)
+    persona = store.load_persona(args.name)
+    if args.json:
+        print(json.dumps(persona, indent=2, sort_keys=True))
+        return
+    path = store.personas_path / f"{args.name}.yaml"
+    print(path.read_text(encoding="utf-8"), end="")
+
+
+def cmd_persona_path(args: argparse.Namespace) -> None:
+    store = find_store(override=args.store)
+    store.load_persona(args.name)
+    print(store.personas_path / f"{args.name}.yaml")
 
 
 def cmd_study_new(args: argparse.Namespace) -> None:
@@ -279,6 +395,35 @@ def cmd_show(args: argparse.Namespace) -> None:
     print(f"Personas: {', '.join(study.get('personas') or [])}")
 
 
+def cmd_trace(args: argparse.Namespace) -> None:
+    from .trace import edsl_jobs_for_study, summarize_study_trace
+
+    store = find_store(override=args.store)
+    data = edsl_jobs_for_study(store, args.id) if args.edsl_jobs else summarize_study_trace(store, args.id)
+    if args.json:
+        print(json.dumps(data, indent=2, sort_keys=True))
+        return
+    if args.edsl_jobs:
+        jobs = data["edsl_jobs"]
+        if not jobs:
+            print("No EDSL jobs found in traces.")
+            return
+        for job in jobs:
+            print(
+                f"{job.get('run_id')} step {job.get('step')} "
+                f"{job.get('question_type') or ''} {job.get('model') or ''} "
+                f"{job.get('results_url') or job.get('progress_url') or ''}"
+            )
+        return
+    for run in data["runs"]:
+        print(f"Run: {run.get('run_id')}  Persona: {run.get('persona') or 'n/a'}  Outcome: {run.get('outcome')}")
+        for step in run.get("steps") or []:
+            action = " ".join(str(part) for part in [step.get("action_type"), step.get("action_text")] if part)
+            print(f"  step {step.get('step')}: {action or 'n/a'} -> {step.get('status') or ''}  {step.get('url') or ''}")
+            if step.get("thinking"):
+                print(f"    thinking: {step['thinking']}")
+
+
 def cmd_analyze(args: argparse.Namespace) -> None:
     from .analyze import analyze_study
 
@@ -315,6 +460,38 @@ def cmd_uxr(args: argparse.Namespace) -> None:
     print(plan_path.relative_to(store.root))
     print(report_path.relative_to(store.root))
     print(protocol_path.relative_to(store.root))
+
+
+def cmd_report(args: argparse.Namespace) -> None:
+    from .narrative_report import write_narrative_report
+
+    store = find_store(override=args.store)
+    paths = write_narrative_report(
+        store,
+        args.id,
+        formats=args.format,
+        output_dir=args.output_dir,
+        embed_resources=not args.no_embed_resources,
+    )
+    for path in paths:
+        print(path.relative_to(store.root) if _is_relative_to(path, store.root) else path)
+
+
+def cmd_humanize_export(args: argparse.Namespace) -> None:
+    from .humanize_export import export_humanize_survey
+
+    store = find_store(override=args.store)
+    script_path, manifest_path = export_humanize_survey(
+        store,
+        args.id,
+        template=args.template,
+        screenshots=args.screenshots,
+        max_screenshots=args.max_screenshots,
+        output=args.output,
+        survey_name=args.survey_name,
+    )
+    print(script_path.relative_to(store.root) if _is_relative_to(script_path, store.root) else script_path)
+    print(manifest_path.relative_to(store.root) if _is_relative_to(manifest_path, store.root) else manifest_path)
 
 
 def cmd_animate(args: argparse.Namespace) -> None:
@@ -370,6 +547,67 @@ def cmd_ci(args: argparse.Namespace) -> None:
         raise StoreError("CI fixture failures: " + "; ".join(failures), exit_code=1)
 
 
+def cmd_docs_list(args: argparse.Namespace) -> None:
+    for path in _resource_files("docs", suffixes=(".md",)):
+        print(path)
+
+
+def cmd_docs_path(args: argparse.Namespace) -> None:
+    resource = _doc_resource(args.name)
+    with resources.as_file(resource) as path:
+        print(path)
+
+
+def cmd_docs_show(args: argparse.Namespace) -> None:
+    resource = _doc_resource(args.name)
+    print(resource.read_text(encoding="utf-8"), end="")
+
+
+def cmd_docs_open(args: argparse.Namespace) -> None:
+    resource = _doc_resource(args.name)
+    with resources.as_file(resource) as path:
+        subprocess.run(["open", str(path)], check=False)
+
+
+def cmd_doctor(args: argparse.Namespace) -> None:
+    checks = _doctor_checks()
+    if args.json:
+        print(json.dumps(checks, indent=2, sort_keys=True))
+        return
+    for check in checks:
+        status = "ok" if check["ok"] else "missing"
+        print(f"{status:7} {check['name']}: {check['detail']}")
+        if not check["ok"] and check.get("fix"):
+            print(f"        fix: {check['fix']}")
+
+
+def cmd_examples_list(args: argparse.Namespace) -> None:
+    for path in _resource_files("examples"):
+        print(path)
+
+
+def cmd_examples_path(args: argparse.Namespace) -> None:
+    resource = _example_resource(args.name)
+    with resources.as_file(resource) as path:
+        print(path)
+
+
+def cmd_examples_copy(args: argparse.Namespace) -> None:
+    resource = _example_resource(args.name)
+    dest = args.dest.expanduser().resolve()
+    if resource.is_file():
+        dest.mkdir(parents=True, exist_ok=True)
+        output = dest / resource.name
+        output.write_bytes(resource.read_bytes())
+        print(output)
+        return
+    if dest.exists() and any(dest.iterdir()):
+        raise StoreError(f"Destination is not empty: {dest}", exit_code=2)
+    dest.mkdir(parents=True, exist_ok=True)
+    _copy_resource_tree(resource, dest)
+    print(dest)
+
+
 def cmd_prune(args: argparse.Namespace) -> None:
     from .retention import prune_study_runs
 
@@ -383,7 +621,7 @@ def cmd_prune(args: argparse.Namespace) -> None:
 
 
 def cmd_example_serve(args: argparse.Namespace) -> None:
-    server = Path(__file__).resolve().parent.parent / "examples" / "checkout_site" / "server.py"
+    server = _example_resource_path("checkout_site/server.py")
     subprocess.run(
         [sys.executable, str(server), "--host", args.host, "--port", str(args.port)],
         check=True,
@@ -391,7 +629,7 @@ def cmd_example_serve(args: argparse.Namespace) -> None:
 
 
 def cmd_example_serve_saas(args: argparse.Namespace) -> None:
-    server = Path(__file__).resolve().parent.parent / "examples" / "saas_site" / "server.py"
+    server = _example_resource_path("saas_site/server.py")
     subprocess.run(
         [sys.executable, str(server), "--host", args.host, "--port", str(args.port)],
         check=True,
@@ -524,7 +762,7 @@ def cmd_example_eval_saas(args: argparse.Namespace) -> None:
             raise
         store = Store.init(Path.cwd(), project_name="uxtest-example")
         print(f"Initialized {store.path}")
-    fixture_path = Path(__file__).resolve().parent.parent / "examples" / "saas_site" / "regression.yaml"
+    fixture_path = _example_resource_path("saas_site/regression.yaml")
     result = run_fixture(
         store,
         fixture_path,
@@ -544,7 +782,7 @@ def cmd_example_eval_saas(args: argparse.Namespace) -> None:
 def _ensure_example_server(host: str, port: int) -> subprocess.Popen | None:
     if _port_is_open(host, port):
         return None
-    server = Path(__file__).resolve().parent.parent / "examples" / "checkout_site" / "server.py"
+    server = _example_resource_path("checkout_site/server.py")
     process = subprocess.Popen(
         [sys.executable, str(server), "--host", host, "--port", str(port)],
         stdout=subprocess.DEVNULL,
@@ -562,7 +800,7 @@ def _ensure_example_server(host: str, port: int) -> subprocess.Popen | None:
 def _ensure_saas_server(host: str, port: int) -> subprocess.Popen | None:
     if _port_is_open(host, port):
         return None
-    server = Path(__file__).resolve().parent.parent / "examples" / "saas_site" / "server.py"
+    server = _example_resource_path("saas_site/server.py")
     process = subprocess.Popen(
         [sys.executable, str(server), "--host", host, "--port", str(port)],
         stdout=subprocess.DEVNULL,
@@ -747,6 +985,185 @@ def _read_trace_lines(path: Path) -> list[dict]:
             if isinstance(value, dict):
                 events.append(value)
     return events
+
+
+def _doctor_checks() -> list[dict[str, Any]]:
+    checks: list[dict[str, Any]] = [
+        {"name": "uxtest", "ok": True, "detail": f"version {__version__}"},
+    ]
+    try:
+        import edsl  # type: ignore
+
+        checks.append({"name": "edsl", "ok": True, "detail": f"importable from {Path(edsl.__file__).parent}"})
+    except Exception as exc:
+        checks.append({"name": "edsl", "ok": False, "detail": str(exc), "fix": "Install uxtest dependencies, which include edsl."})
+
+    try:
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(headless=True)
+            browser.close()
+        checks.append({"name": "playwright chromium", "ok": True, "detail": "browser launches"})
+    except Exception as exc:
+        checks.append(
+            {
+                "name": "playwright chromium",
+                "ok": False,
+                "detail": str(exc).splitlines()[0] if str(exc) else exc.__class__.__name__,
+                "fix": "Run `python -m playwright install chromium` or `playwright install --with-deps chromium`.",
+            }
+        )
+
+    pandoc = shutil.which("pandoc")
+    checks.append(
+        {
+            "name": "pandoc",
+            "ok": bool(pandoc),
+            "detail": pandoc or "not found",
+            "fix": "Install pandoc for `uxtest report --format html,pdf`.",
+        }
+    )
+    return checks
+
+
+def _is_relative_to(path: Path, parent: Path) -> bool:
+    try:
+        path.resolve().relative_to(parent.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+DOC_ALIASES = {
+    "root": "README.md",
+    "readme": "README.md",
+    "spec": "SPEC.md",
+    "study-types": "study_types/README.md",
+    "study_types": "study_types/README.md",
+    "accessibility-inclusive-ux": "study_types/accessibility_inclusive_ux/README.md",
+    "accessibility_inclusive_ux": "study_types/accessibility_inclusive_ux/README.md",
+    "competitive-benchmark-studies": "study_types/competitive_benchmark_studies/README.md",
+    "competitive_benchmark_studies": "study_types/competitive_benchmark_studies/README.md",
+    "content-comprehension": "study_types/content_comprehension/README.md",
+    "content_comprehension": "study_types/content_comprehension/README.md",
+    "conversion-path-testing": "study_types/conversion_path_testing/README.md",
+    "conversion_path_testing": "study_types/conversion_path_testing/README.md",
+    "enterprise-buying-research": "study_types/enterprise_buying_research/README.md",
+    "enterprise_buying_research": "study_types/enterprise_buying_research/README.md",
+    "feature-findability": "study_types/feature_findability/README.md",
+    "feature_findability": "study_types/feature_findability/README.md",
+    "information-architecture": "study_types/information_architecture/README.md",
+    "information_architecture": "study_types/information_architecture/README.md",
+    "longitudinal-regression": "study_types/longitudinal_regression/README.md",
+    "longitudinal_regression": "study_types/longitudinal_regression/README.md",
+    "onboarding-activation": "study_types/onboarding_activation/README.md",
+    "onboarding_activation": "study_types/onboarding_activation/README.md",
+    "post-login-workflow-testing": "study_types/post_login_workflow_testing/README.md",
+    "post_login_workflow_testing": "study_types/post_login_workflow_testing/README.md",
+    "task-discovery": "study_types/task_discovery/README.md",
+    "task_discovery": "study_types/task_discovery/README.md",
+}
+
+EXAMPLE_ALIASES = {
+    "all": "",
+    "expectedparrot": "expectedparrot_site",
+    "expectedparrot-enterprise-demo": "expectedparrot_site/enterprise-demo.yaml",
+    "expectedparrot-credibility": "expectedparrot_site/credibility.yaml",
+    "jjh": "jjh_site",
+    "jjh-discovery": "jjh_site/discovery.yaml",
+    "jjh-targeted": "jjh_site/targeted.yaml",
+    "saas": "saas_site",
+    "saas-regression": "saas_site/regression.yaml",
+    "saas-regression-edsl": "saas_site/regression-edsl.yaml",
+    "task-discovery": "study_types/task_discovery/README.md",
+}
+
+
+def _resource_root(kind: str) -> Any:
+    root = resources.files("uxtest").joinpath("resources", kind)
+    if not root.is_dir():
+        raise StoreError(f"Bundled {kind} resources are unavailable.", exit_code=1)
+    return root
+
+
+def _resource_files(kind: str, *, suffixes: tuple[str, ...] | None = None) -> list[str]:
+    root = _resource_root(kind)
+    output: list[str] = []
+
+    def walk(node: Any, prefix: str = "") -> None:
+        for child in sorted(node.iterdir(), key=lambda item: item.name):
+            child_path = f"{prefix}{child.name}"
+            if child.is_dir():
+                walk(child, f"{child_path}/")
+            elif suffixes is None or child.name.endswith(suffixes):
+                output.append(child_path)
+
+    walk(root)
+    return output
+
+
+def _doc_resource(name: str) -> Any:
+    requested = DOC_ALIASES.get(name, name)
+    return _resolve_resource("docs", requested)
+
+
+def _example_resource(name: str) -> Any:
+    requested = EXAMPLE_ALIASES.get(name, name)
+    return _resolve_resource("examples", requested)
+
+
+_RESOURCE_CONTEXTS: list[Any] = []
+
+
+def _example_resource_path(relative_path: str) -> Path:
+    resource = _example_resource(relative_path)
+    context = resources.as_file(resource)
+    path = context.__enter__()
+    _RESOURCE_CONTEXTS.append(context)
+    return path
+
+
+def _resolve_resource(kind: str, requested: str) -> Any:
+    root = _resource_root(kind)
+    normalized = requested.strip("/")
+    if kind == "docs":
+        normalized = _normalize_doc_request(normalized)
+    resource = root if not normalized else root.joinpath(*Path(normalized).parts)
+    if not resource.exists():
+        available_files = _resource_files(kind)
+        suggestions = difflib.get_close_matches(normalized or requested, available_files, n=5, cutoff=0.35)
+        suffix_matches = [path for path in available_files if path.endswith(normalized) or normalized in path]
+        hints = suggestions or suffix_matches[:5]
+        available = ", ".join(available_files[:20])
+        hint_text = f" Did you mean: {', '.join(hints)}?" if hints else ""
+        raise StoreError(f"Bundled {kind} resource {requested!r} not found.{hint_text} Available: {available}", exit_code=2)
+    return resource
+
+
+def _normalize_doc_request(value: str) -> str:
+    if not value:
+        return value
+    if value in DOC_ALIASES:
+        return DOC_ALIASES[value]
+    path = Path(value)
+    if len(path.parts) == 2 and path.parts[1] == "README.md":
+        return f"study_types/{path.parts[0]}/README.md"
+    if len(path.parts) == 1 and not value.endswith(".md"):
+        underscored = value.replace("-", "_")
+        return DOC_ALIASES.get(underscored, value)
+    return value
+
+
+def _copy_resource_tree(resource: Any, dest: Path) -> None:
+    for child in resource.iterdir():
+        target = dest / child.name
+        if child.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+            _copy_resource_tree(child, target)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(child.read_bytes())
 
 
 DEVICE_PROFILES: dict[str, dict] = {
