@@ -251,6 +251,18 @@ def build_parser() -> argparse.ArgumentParser:
     figma_study.add_argument("--model", default="gpt-4o")
     figma_study.add_argument("--output", type=Path)
     figma_study.set_defaults(func=cmd_figma_study)
+    figma_prototype = figma_sub.add_parser("prototype", help="Generate a Playwright/EDSL runner for a Figma prototype URL.")
+    figma_prototype.add_argument("url", help="Figma /proto/ URL.")
+    figma_prototype.add_argument("--task", required=True)
+    figma_prototype.add_argument("--model", default="gpt-4o")
+    figma_prototype.add_argument("--max-steps", type=int, default=8)
+    figma_prototype.add_argument("--output", type=Path)
+    figma_prototype.set_defaults(func=cmd_figma_prototype)
+    figma_audit = figma_sub.add_parser("audit", help="Audit a Figma prototype for visible labels and wired interactions.")
+    figma_audit.add_argument("url", help="Figma file/design/prototype URL with node-id.")
+    figma_audit.add_argument("--refresh", action="store_true", help="Refresh Figma metadata instead of using the local cache.")
+    figma_audit.add_argument("--json", action="store_true", help="Print the JSON audit path and summary.")
+    figma_audit.set_defaults(func=cmd_figma_audit)
     figma_report = figma_sub.add_parser("report", help="Write a Markdown report for a Figma import.")
     figma_report.add_argument("import_id")
     figma_report.set_defaults(func=cmd_figma_report)
@@ -815,6 +827,48 @@ def cmd_figma_study(args: argparse.Namespace) -> None:
     )
     print(script_path.relative_to(store.root) if _is_relative_to(script_path, store.root) else script_path)
     print(manifest_path.relative_to(store.root) if _is_relative_to(manifest_path, store.root) else manifest_path)
+
+
+def cmd_figma_prototype(args: argparse.Namespace) -> None:
+    from .figma import write_figma_prototype_script
+
+    store = _find_or_init_store(args.store)
+    script_path, manifest_path = write_figma_prototype_script(
+        store,
+        args.url,
+        task=args.task,
+        model=args.model,
+        max_steps=args.max_steps,
+        output=args.output,
+    )
+    print(script_path.relative_to(store.root) if _is_relative_to(script_path, store.root) else script_path)
+    print(manifest_path.relative_to(store.root) if _is_relative_to(manifest_path, store.root) else manifest_path)
+
+
+def cmd_figma_audit(args: argparse.Namespace) -> None:
+    from .figma import audit_figma_prototype
+
+    store = _find_or_init_store(args.store)
+    audit_dir, audit_path, report_path = audit_figma_prototype(store, args.url, refresh=args.refresh)
+    if args.json:
+        audit = json.loads(audit_path.read_text(encoding="utf-8"))
+        print(
+            json.dumps(
+                {
+                    "audit_dir": str(audit_dir.relative_to(store.root) if _is_relative_to(audit_dir, store.root) else audit_dir),
+                    "audit_json": str(audit_path.relative_to(store.root) if _is_relative_to(audit_path, store.root) else audit_path),
+                    "audit_report": str(report_path.relative_to(store.root) if _is_relative_to(report_path, store.root) else report_path),
+                    "summary": audit.get("summary"),
+                    "cache": audit.get("cache"),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return
+    print(audit_dir.relative_to(store.root) if _is_relative_to(audit_dir, store.root) else audit_dir)
+    print(audit_path.relative_to(store.root) if _is_relative_to(audit_path, store.root) else audit_path)
+    print(report_path.relative_to(store.root) if _is_relative_to(report_path, store.root) else report_path)
 
 
 def cmd_figma_report(args: argparse.Namespace) -> None:

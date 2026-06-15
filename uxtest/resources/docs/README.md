@@ -456,8 +456,14 @@ Batch reports are written to `.uxtest/comparisons/` by default:
 ## Figma Design Studies
 
 Use `figma` commands when the target is a Figma design or prototype rather than
-a live web page. This first integration tests static frames with vision-capable
-EDSL models; it does not yet simulate Figma prototype hotspot navigation.
+a live web page. There are two workflows:
+
+- Static design frames: import Figma image exports and ask EDSL vision models
+  what a persona understands or would click next.
+- Clickable prototypes: audit Figma metadata for visible labels versus wired
+  interactions, then generate a Playwright runner that opens the shared
+  prototype URL, captures screenshots, asks EDSL for the next action, and
+  records a step trace.
 
 Set a Figma access token before importing:
 
@@ -465,6 +471,12 @@ Set a Figma access token before importing:
 export FIGMA_ACCESS_TOKEN=...
 uxtest figma doctor
 ```
+
+Static frame imports require `FIGMA_ACCESS_TOKEN`. Prototype runners can run
+without the Figma API, but prototype audits and high-quality prototype runners
+use Figma metadata when `FIGMA_ACCESS_TOKEN` is set. Metadata is cached under
+`.uxtest/figma/cache/`; if Figma returns `429`, uxtest uses stale cached
+metadata when available and records the rate-limit details.
 
 Import a selected frame from a copied Figma selection URL:
 
@@ -511,10 +523,63 @@ Run it with EDSL remote inference:
 python .uxtest/figma/<import-id>/figma_vision_study.py --launch
 ```
 
-Write a simple Markdown report of imported frames:
+Audit a clickable prototype before asking an agent to navigate it:
+
+```bash
+uxtest figma audit "https://www.figma.com/proto/<file-key>/<name>?node-id=<node>"
+```
+
+The audit writes:
+
+```text
+.uxtest/figma/audit-<file-key>-<node>/audit.json
+.uxtest/figma/audit-<file-key>-<node>/audit.md
+```
+
+Use the audit to identify visible labels that are not wired as prototype
+interactions, vague interaction labels, and likely dead-end affordances. For
+agents, this is the first command to run against a prototype because Figma
+renders much of the experience as canvas content; Playwright cannot reliably
+query visible labels from the DOM.
+
+Generate a clickable prototype runner from a `/proto/` URL:
+
+```bash
+uxtest figma prototype "https://www.figma.com/proto/<file-key>/<name>?node-id=<node>" \
+  --task "Can an enterprise visitor understand the product and find the demo path?" \
+  --max-steps 8
+```
+
+The generated runner is dry-run by default:
+
+```bash
+python .uxtest/figma/<prototype-id>/figma_prototype_runner.py
+```
+
+Launch the browser and EDSL coordinate-click loop:
+
+```bash
+python .uxtest/figma/<prototype-id>/figma_prototype_runner.py --launch
+```
+
+The runner records `failure_type` values such as `unwired_visible_affordance`,
+`repeated_no_op`, `coordinate_miss`, and `agent_invalid_decision`. When Figma
+interaction metadata is available, the runner gives EDSL exact candidate
+interaction centers and snaps matching decisions to those centers before
+clicking.
+
+Use `--headed` when Figma requires browser login or when you need to inspect
+prototype behavior manually:
+
+```bash
+python .uxtest/figma/<prototype-id>/figma_prototype_runner.py --launch --headed
+```
+
+Write a Markdown report of imported frames or a prototype run trace:
 
 ```bash
 uxtest figma report <import-id>
+uxtest figma report <prototype-id>
 ```
 
 Use this workflow for design-stage questions:
@@ -523,6 +588,8 @@ Use this workflow for design-stage questions:
 - What would they click first?
 - Which labels, CTAs, or visual hierarchy are confusing?
 - Does the frame communicate credibility or enterprise readiness?
+- Where does a clickable prototype route a persona, and where does the flow
+  become blocked?
 - How does the design intent compare to the later live site?
 
 ## Export A Human Screenshot Survey
