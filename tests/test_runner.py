@@ -5,7 +5,18 @@ from pathlib import Path
 from uxtest import runner
 from uxtest.cli import _doc_resource, _example_resource, _parse_viewport, _resource_files
 from uxtest.fixtures import _fixture_run_overrides
-from uxtest.runner import _classify_action_outcome, _redact_text, _redacted_setup_action, _setup_step_value
+from uxtest.runner import (
+    _classify_action_outcome,
+    _decision_has_enough_evidence,
+    _is_exploratory_study,
+    _normalize_stop_decision,
+    _redact_text,
+    _redacted_setup_action,
+    _setup_step_value,
+    _should_stop_after_action,
+    _should_auto_stop_with_evidence,
+)
+from uxtest.models import BrowserAction, BrowserDecision
 from uxtest.store import Store, read_yaml
 from uxtest.stop_quality import classify_run_stop_quality
 
@@ -205,6 +216,87 @@ def test_stop_quality_classifier_detects_enough_evidence_before_max_steps():
 
     assert quality["class"] == "enough_evidence_but_continued"
     assert quality["step"] == 1
+
+
+def test_live_auto_stop_uses_decision_evidence_for_exploratory_tasks():
+    study = {
+        "mode": "live-site-task-discovery",
+        "task": "Figure out what this product is for and what you would click next.",
+        "success_criteria": "The visitor can explain the purpose and next action.",
+    }
+    decision = BrowserDecision(
+        action=BrowserAction(type="click", ref="e1", text="Products"),
+        thinking="I understand this site is for AI simulation and survey research. My next step would be Products.",
+        frustration=1,
+        status="continue",
+        driver="edsl",
+    )
+
+    assert _is_exploratory_study(study)
+    assert _decision_has_enough_evidence(decision)
+    assert _should_auto_stop_with_evidence(study, {}, decision)
+
+
+def test_live_auto_stop_does_not_apply_to_transactional_or_heuristic_runs():
+    transactional = {
+        "mode": "checkout",
+        "task": "Complete checkout and place order.",
+        "success_criteria": "The order confirmation page is shown.",
+    }
+    exploratory = {
+        "task": "Figure out what this product is for and explain what you would click next.",
+        "success_criteria": "The visitor can explain purpose and next action.",
+    }
+    heuristic_decision = BrowserDecision(
+        action=BrowserAction(type="click", ref="e1", text="Products"),
+        thinking="I understand this site is for AI simulation and survey research. My next step would be Products.",
+        frustration=1,
+        status="continue",
+        driver="heuristic",
+    )
+
+    assert not _is_exploratory_study(transactional)
+    assert not _should_auto_stop_with_evidence(transactional, {}, heuristic_decision.model_copy(update={"driver": "edsl"}))
+    assert not _should_auto_stop_with_evidence(exploratory, {}, heuristic_decision)
+    assert not _should_auto_stop_with_evidence(exploratory, {"auto_stop_on_enough_evidence": False}, heuristic_decision.model_copy(update={"driver": "edsl"}))
+
+
+def test_done_decision_does_not_execute_a_browser_action():
+    study = {
+        "mode": "live-site-task-discovery",
+        "task": "Figure out what this product is for.",
+        "success_criteria": "The visitor can explain the purpose.",
+    }
+    decision = BrowserDecision(
+        action=BrowserAction(type="click", ref="e1", text="Get started"),
+        thinking="The site appears to be for stakeholder simulation. Get started is the likely next action.",
+        frustration=1,
+        status="done",
+        driver="edsl",
+    )
+
+    normalized = _normalize_stop_decision(study, {}, decision)
+
+    assert normalized.status == "done"
+    assert normalized.action.type == "none"
+    assert "not executed" in normalized.thinking
+
+
+def test_auth_next_step_stops_conversion_path_after_action():
+    study = {
+        "mode": "live-site-conversion",
+        "task": "Find the path to schedule a demo, request access, contact sales, or explain why blocked.",
+        "success_criteria": "The visitor reaches a demo, contact, sales, signup, dashboard, or equivalent next-step path.",
+    }
+    decision = BrowserDecision(
+        action=BrowserAction(type="click", ref="e1", text="Get started"),
+        thinking="Get started is likely the enterprise buying next step.",
+        frustration=2,
+        status="continue",
+        driver="edsl",
+    )
+
+    assert _should_stop_after_action(study, decision, {"final_url": "https://example.test/login", "action_outcome": "url_navigation"})
 
 
 def test_stop_quality_classifier_detects_auth_and_no_visible_advance():

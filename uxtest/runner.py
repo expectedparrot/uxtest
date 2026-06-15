@@ -7,49 +7,28 @@ import platform
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Literal
-from urllib.parse import urlsplit, urlunsplit
+from typing import Any
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, StrictStr
-
+from .browser import (
+    capture_state as _capture_state,
+    classify_action_outcome as _classify_action_outcome,
+    execute_action as _execute_action,
+    find_text_on_page as _find_text_on_page,
+    safe_page_title as _safe_page_title,
+    settle_page as _settle_page,
+    wait_after_action as _wait_after_action,
+)
+from .decisions import heuristic_decision as _heuristic_decision, scripted_decision as _scripted_decision
+from .models import ActionType, BrowserAction, BrowserDecision, BrowserDecisionAnswer, RunDriver
 from .store import Store, StoreError, atomic_write_json, utc_now
 from .stop_quality import compact_stop_hint, event_has_enough_evidence
 
 
-ActionType = Literal["click", "type", "scroll", "find", "select", "back", "wait", "none"]
-RunDriver = Literal["edsl", "heuristic", "scripted"]
 PYDANTIC_ANSWERING_INSTRUCTIONS = (
     "Return ONLY one minified JSON object that directly matches the response schema. "
     "Do not wrap it in an answer key. Do not include a comment key. Do not include markdown."
 )
-
-
-class BrowserAction(BaseModel):
-    type: ActionType = Field(description="Browser action to take.")
-    ref: str | None = Field(default=None, description="Element ref from the supplied interactive elements.")
-    text: str | None = Field(default=None, description="Short action description, or text/topic to find for find actions.")
-    value: str | None = Field(default=None, description="Optional value for selects.")
-
-
-class BrowserDecision(BaseModel):
-    action: BrowserAction
-    thinking: str
-    frustration: int = Field(ge=0, le=10)
-    status: Literal["continue", "done", "gave_up"]
-    driver: RunDriver = "heuristic"
-    raw_response: str | None = None
-    edsl: dict[str, Any] = Field(default_factory=dict)
-
-
-class BrowserDecisionAnswer(BaseModel):
-    action_type: ActionType = Field(description="Browser action to take.")
-    ref: str | None = Field(default=None, description="Element ref from the supplied interactive elements.")
-    text: str | None = Field(default=None, description="Short action description, or text/topic to find for find actions.")
-    value: str | None = Field(default=None, description="Exact value to enter for type/select actions.")
-    thinking: StrictStr = Field(description="Brief rationale for the next action.")
-    frustration: int = Field(ge=0, le=10, description="Current frustration from 0 to 10.")
-    status: Literal["continue", "done", "gave_up"] = Field(description="Agent assessment of task status.")
 
 
 def run_study(
@@ -234,6 +213,7 @@ def _run_once(
                     decision = _scripted_decision(study, state, recent_events)
                 else:
                     decision = _edsl_decision(study, persona_doc, resolved_config, state, run_dir, store.root, recent_events)
+                decision = _normalize_stop_decision(study, resolved_config, decision)
                 action_key = (state["url"], decision.action.type, decision.action.ref, decision.action.text, decision.action.value)
                 repeated_action_count = repeated_action_count + 1 if action_key == last_action_key else 1
                 last_action_key = action_key
@@ -241,6 +221,13 @@ def _run_once(
                     decision.status = "gave_up"
                     decision.thinking = f"{decision.thinking}\nStopped after repeating the same action {repeated_action_count} times."
                 result = _execute_action(page, state, decision.action)
+                if _should_stop_after_action(study, decision, result):
+                    decision = decision.model_copy(
+                        update={
+                            "status": "done",
+                            "thinking": _append_observed_stop_reason(decision.thinking, result),
+                        }
+                    )
                 event = _trace_event(step, state, decision, result, resolved_config)
                 _append_jsonl(trace_path, event)
                 recent_events.append(_compact_trace_event(event))
@@ -275,6 +262,123 @@ def _run_once(
     return run_dir
 
 
+def _normalize_stop_decision(study: dict[str, Any], config: dict[str, Any], decision: BrowserDecision) -> BrowserDecision:
+    if decision.status == "done" and decision.action.type != "none":
+        return decision.model_copy(
+            update={
+                "action": BrowserAction(type="none"),
+                "thinking": _append_done_action_override_reason(decision.thinking, decision.action),
+            }
+        )
+    if _should_auto_stop_with_evidence(study, config, decision):
+        return decision.model_copy(
+            update={
+                "action": BrowserAction(type="none"),
+                "status": "done",
+                "thinking": _append_auto_stop_reason(decision.thinking),
+            }
+        )
+    return decision
+
+
+def _should_auto_stop_with_evidence(study: dict[str, Any], config: dict[str, Any], decision: BrowserDecision) -> bool:
+    if decision.status != "continue":
+        return False
+    if decision.driver not in {"edsl", "scripted"}:
+        return False
+    if config.get("auto_stop_on_enough_evidence") is False:
+        return False
+    if not _is_exploratory_study(study):
+        return False
+    return _decision_has_enough_evidence(decision)
+
+
+def _decision_has_enough_evidence(decision: BrowserDecision) -> bool:
+    return event_has_enough_evidence(
+        {
+            "thinking": decision.thinking,
+            "action": {
+                "text": decision.action.text,
+            },
+        }
+    )
+
+
+def _is_exploratory_study(study: dict[str, Any]) -> bool:
+    mode = str(study.get("mode") or "").lower()
+    if mode:
+        if any(term in mode for term in ("task-discovery", "content-comprehension", "information-architecture", "feature-findability", "credibility", "conversion", "enterprise-demo")):
+            return True
+        if any(term in mode for term in ("checkout", "transaction", "form-submit")):
+            return False
+    text = " ".join(str(study.get(key) or "") for key in ("task", "success_criteria")).lower()
+    exploratory_markers = (
+        "can explain",
+        "explain why",
+        "figure out",
+        "identify",
+        "what is confusing",
+        "what they would do next",
+        "would click next",
+        "evidence",
+        "credibility",
+        "find the path",
+        "blocked",
+        "missing",
+    )
+    transactional_markers = (
+        "place order",
+        "complete checkout",
+        "submit the form",
+        "make a purchase",
+        "finish payment",
+    )
+    return any(marker in text for marker in exploratory_markers) and not any(marker in text for marker in transactional_markers)
+
+
+def _append_auto_stop_reason(thinking: str) -> str:
+    marker = "Auto-stopped because the rationale contains enough evidence to answer this exploratory task."
+    thinking = str(thinking or "").strip()
+    if marker in thinking:
+        return thinking
+    return f"{thinking}\n{marker}" if thinking else marker
+
+
+def _append_done_action_override_reason(thinking: str, action: BrowserAction) -> str:
+    marker = f"Status was done, so the requested {action.type} action was not executed."
+    thinking = str(thinking or "").strip()
+    if marker in thinking:
+        return thinking
+    return f"{thinking}\n{marker}" if thinking else marker
+
+
+def _should_stop_after_action(study: dict[str, Any], decision: BrowserDecision, result: dict[str, Any]) -> bool:
+    if decision.status != "continue":
+        return False
+    if not _is_exploratory_study(study):
+        return False
+    if _action_reached_auth_next_step(study, result):
+        return True
+    return False
+
+
+def _action_reached_auth_next_step(study: dict[str, Any], result: dict[str, Any]) -> bool:
+    final_url = str(result.get("final_url") or "").lower()
+    if not any(part in final_url for part in ("/login", "/signin", "/sign-in", "/signup", "/sign-up", "/auth")):
+        return False
+    text = " ".join(str(study.get(key) or "") for key in ("task", "success_criteria")).lower()
+    return any(marker in text for marker in ("demo", "request access", "contact", "sales", "signup", "sign up", "dashboard", "blocked", "buying next step"))
+
+
+def _append_observed_stop_reason(thinking: str, result: dict[str, Any]) -> str:
+    final_url = str(result.get("final_url") or "")
+    marker = f"Stopped after the action reached an authentication or account next-step path: {final_url}."
+    thinking = str(thinking or "").strip()
+    if marker in thinking:
+        return thinking
+    return f"{thinking}\n{marker}" if thinking else marker
+
+
 def _next_run_sequence(store: Store, study_id: str) -> int:
     max_sequence = 0
     for run_dir in store.list_runs(study_id):
@@ -297,153 +401,6 @@ def _persona_instance(persona_doc: dict[str, Any]) -> dict[str, Any]:
         "resolved": persona_doc.get("attributes", {}),
         "source_sha256": hashlib.sha256(source).hexdigest(),
         "snapshot": persona_doc,
-    }
-
-
-def _capture_state(page: Any, run_dir: Path, step: int, config: dict[str, Any]) -> dict[str, Any]:
-    screenshot_rel = None
-    if config.get("screenshot", "full") != "off":
-        suffix = "jpg" if config.get("screenshot_format") == "jpeg" else "png"
-        screenshot_rel = f"screenshots/step-{step:03d}.{suffix}"
-        screenshot_path = run_dir / screenshot_rel
-        # Full-page screenshots can scroll the page internally and collapse
-        # transient UI such as nav menus. Browser-decision screenshots must
-        # preserve the current viewport state.
-        kwargs: dict[str, Any] = {"path": str(screenshot_path), "full_page": False}
-        if suffix == "jpg":
-            kwargs["quality"] = int(config.get("screenshot_quality", 80))
-            kwargs["type"] = "jpeg"
-        page.screenshot(**kwargs)
-
-    elements = page.evaluate(
-        """
-        () => {
-          document.querySelectorAll('[data-uxtest-ref]').forEach((el) => el.removeAttribute('data-uxtest-ref'));
-          const nearestLandmark = (el) => {
-            const landmark = el.closest('nav,header,main,footer,aside,[role="navigation"],[role="banner"],[role="main"]');
-            if (!landmark) return '';
-            return (landmark.getAttribute('aria-label') || landmark.getAttribute('role') || landmark.tagName || '').toLowerCase();
-          };
-          const rawLabelFor = (el) => {
-            const aria = (el.getAttribute('aria-label') || '').trim();
-            if (aria) return { label: aria, source: 'aria-label' };
-            const title = (el.getAttribute('title') || '').trim();
-            if (title) return { label: title, source: 'title' };
-            const alt = (el.querySelector('img[alt]')?.getAttribute('alt') || '').trim();
-            if (alt) return { label: alt, source: 'img-alt' };
-            const svgTitle = (el.querySelector('svg title')?.textContent || '').trim();
-            if (svgTitle) return { label: svgTitle, source: 'svg-title' };
-            const text = (el.innerText || '').trim();
-            if (text) return { label: text, source: 'innerText' };
-            const placeholder = (el.getAttribute('placeholder') || '').trim();
-            if (placeholder) return { label: placeholder, source: 'placeholder' };
-            const value = (el.value || '').trim();
-            if (value) return { label: value, source: 'value' };
-            const name = (el.getAttribute('name') || '').trim();
-            if (name) return { label: name, source: 'name' };
-            if (el.tagName.toLowerCase() === 'button') {
-              const landmark = nearestLandmark(el);
-              const expanded = el.getAttribute('aria-expanded');
-              if (expanded !== null || landmark.includes('nav') || landmark.includes('header') || landmark.includes('banner')) {
-                return { label: 'Menu', source: 'inferred-menu-button' };
-              }
-              return { label: 'Unlabeled button', source: 'inferred-unlabeled-button' };
-            }
-            return { label: '', source: '' };
-          };
-          const contextFor = (el, label) => {
-            const elRect = el.getBoundingClientRect();
-            const headings = Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6'))
-              .map((heading) => ({ text: (heading.innerText || '').replace(/\\s+/g, ' ').trim(), rect: heading.getBoundingClientRect() }))
-              .filter((heading) => heading.text && heading.rect.bottom <= elRect.top && heading.rect.right > elRect.left && heading.rect.left < elRect.right)
-              .sort((a, b) => b.rect.bottom - a.rect.bottom);
-            if (headings.length > 0) {
-              return headings[0].text;
-            }
-            let current = el.parentElement;
-            for (let depth = 0; current && depth < 5; depth += 1, current = current.parentElement) {
-              const text = (current.innerText || '').replace(/\\s+/g, ' ').trim();
-              if (!text || text === label || text.length > 500) continue;
-              return text.slice(0, 240);
-            }
-            return '';
-          };
-          const nodes = Array.from(document.querySelectorAll('a,button,input,select,textarea,[role="button"],[role="link"]'))
-            .filter((el) => {
-              const style = window.getComputedStyle(el);
-              const rect = el.getBoundingClientRect();
-              const inViewport = rect.bottom > 0 && rect.right > 0 && rect.top < window.innerHeight && rect.left < window.innerWidth;
-              return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0 && inViewport;
-            });
-          return nodes.slice(0, 80).map((el, index) => {
-            const ref = `e${index + 1}`;
-            el.setAttribute('data-uxtest-ref', ref);
-            const labelInfo = rawLabelFor(el);
-            const label = labelInfo.label;
-            return {
-              ref,
-              tag: el.tagName.toLowerCase(),
-              role: el.getAttribute('role') || '',
-              type: el.getAttribute('type') || '',
-              name: el.getAttribute('name') || '',
-              value: el.value || '',
-              label,
-              label_source: labelInfo.source,
-              context: contextFor(el, label),
-              selector_hint: `[data-uxtest-ref="${ref}"]`
-            };
-          });
-        }
-        """
-    )
-    visible_text = page.evaluate(
-        """
-        () => {
-          const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-          const chunks = [];
-          while (walker.nextNode()) {
-            const node = walker.currentNode;
-            const text = (node.textContent || '').replace(/\\s+/g, ' ').trim();
-            if (!text) continue;
-            const parent = node.parentElement;
-            if (!parent) continue;
-            const style = window.getComputedStyle(parent);
-            if (style.visibility === 'hidden' || style.display === 'none') continue;
-            const range = document.createRange();
-            range.selectNodeContents(node);
-            const rects = Array.from(range.getClientRects());
-            range.detach();
-            if (rects.some((rect) => rect.bottom > 0 && rect.right > 0 && rect.top < window.innerHeight && rect.left < window.innerWidth)) {
-              chunks.push(text);
-            }
-          }
-          return chunks.join('\\n');
-        }
-        """
-    )
-    headings = page.evaluate(
-        """
-        () => Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6'))
-          .map((el) => {
-            const rect = el.getBoundingClientRect();
-            return {
-              text: (el.innerText || '').replace(/\\s+/g, ' ').trim(),
-              level: el.tagName.toLowerCase(),
-              in_viewport: rect.bottom > 0 && rect.top < window.innerHeight,
-              y: Math.round(rect.top + window.scrollY)
-            };
-          })
-          .filter((item) => item.text)
-          .slice(0, 80)
-        """
-    )
-    return {
-        "url": page.url,
-        "page_title": page.title(),
-        "screenshot": screenshot_rel,
-        "interactive_elements": elements,
-        "headings": headings,
-        "visible_text": visible_text[:6000],
     }
 
 
@@ -800,88 +757,6 @@ def _page_contains_text_or_heading(state: dict[str, Any], text: str) -> bool:
     return needle in str(state.get("visible_text") or "").lower()
 
 
-def _heuristic_decision(study: dict[str, Any], state: dict[str, Any]) -> BrowserDecision:
-    text = state["visible_text"].lower()
-    elements = state["interactive_elements"]
-
-    if "order number" in text or "order confirmed" in text:
-        return BrowserDecision(action=BrowserAction(type="none"), thinking="The confirmation page is visible.", frustration=0, status="done", driver="heuristic")
-
-    field_values = {
-        "email": "tester@example.com",
-        "name": "Test Shopper",
-        "card": "4242424242424242",
-        "zip": "02139",
-    }
-    for key, value in field_values.items():
-        found = _find_element(elements, name=key)
-        if found and str(found.get("value") or "") != value:
-            return BrowserDecision(action=BrowserAction(type="type", ref=found["ref"], text=value), thinking=f"Fill {key}.", frustration=1, status="continue", driver="heuristic")
-
-    for label in ["place order", "checkout as guest", "continue", "add to cart"]:
-        found = _find_element(elements, label=label)
-        if found:
-            return BrowserDecision(action=BrowserAction(type="click", ref=found["ref"]), thinking=f"Click {label}.", frustration=1, status="continue", driver="heuristic")
-
-    return BrowserDecision(action=BrowserAction(type="wait"), thinking="Wait for the page to settle.", frustration=3, status="continue", driver="heuristic")
-
-
-def _scripted_decision(study: dict[str, Any], state: dict[str, Any], recent_events: list[dict[str, Any]] | None = None) -> BrowserDecision:
-    text = state["visible_text"].lower()
-    url = state["url"].lower()
-    elements = state["interactive_elements"]
-    recent_events = recent_events or []
-    recent_actions = [
-        str((event.get("action") or {}).get("text") or (event.get("action") or {}).get("type") or "").lower()
-        for event in recent_events
-    ]
-    is_flawed_saas = "variant=flawed" in str(study.get("url", "")).lower() or "variant=flawed" in url
-
-    if "order number" in text or "order confirmed" in text:
-        return BrowserDecision(action=BrowserAction(type="none"), thinking="The confirmation page is visible.", frustration=0, status="done", driver="scripted")
-
-    if "northstar" in text or "research agent" in text or "ai interviewer" in text:
-        if is_flawed_saas:
-            for label in ["view examples", "open example", "docs", "pricing", "menu"]:
-                found = _find_element(elements, label=label)
-                if found and not _scripted_recently_clicked(label, recent_actions, limit=2):
-                    return BrowserDecision(
-                        action=BrowserAction(type="click", ref=found["ref"], text=str(found.get("label") or label)),
-                        thinking=f"Click {label} to follow the fixture's flawed discovery path.",
-                        frustration=2,
-                        status="continue",
-                        driver="scripted",
-                    )
-            repeated_docs = _find_element(elements, label="docs")
-            if repeated_docs:
-                return BrowserDecision(
-                    action=BrowserAction(type="click", ref=repeated_docs["ref"], text=str(repeated_docs.get("label") or "Docs")),
-                    thinking="Repeat Docs to verify whether the page advances after an acknowledged click.",
-                    frustration=5,
-                    status="continue",
-                    driver="scripted",
-                )
-        else:
-            for label in ["explore products", "menu", "docs", "quickstart", "overview"]:
-                found = _find_element(elements, label=label)
-                if found and not _scripted_recently_clicked(label, recent_actions, limit=1):
-                    return BrowserDecision(
-                        action=BrowserAction(type="click", ref=found["ref"], text=str(found.get("label") or label)),
-                        thinking=f"Click {label} to follow the fixture's clear discovery path.",
-                        frustration=1,
-                        status="continue",
-                        driver="scripted",
-                    )
-            return BrowserDecision(action=BrowserAction(type="none"), thinking="The clear discovery route has enough evidence.", frustration=1, status="done", driver="scripted")
-
-    return _heuristic_decision(study, state).model_copy(update={"driver": "scripted"})
-
-
-def _scripted_recently_clicked(label: str, recent_actions: list[str], *, limit: int) -> bool:
-    normalized = label.lower()
-    return sum(1 for action in recent_actions if normalized in action) >= limit
-
-
 def _edsl_scenario_log(scenario_data: dict[str, Any], *, run_dir: Path) -> dict[str, Any]:
     logged: dict[str, Any] = {}
     for key, value in scenario_data.items():
@@ -969,15 +844,6 @@ def _redact_text(text: str, config: dict[str, Any]) -> str:
         except re.error:
             redacted = redacted.replace(pattern, "[REDACTED]")
     return redacted
-
-
-def _find_element(elements: list[dict[str, Any]], *, label: str | None = None, name: str | None = None) -> dict[str, Any] | None:
-    for element in elements:
-        if name and element.get("name") == name:
-            return element
-        if label and label in str(element.get("label", "")).lower():
-            return element
-    return None
 
 
 def _execute_setup_steps(page: Any, run_dir: Path, trace_path: Path, steps: list[Any], config: dict[str, Any]) -> None:
@@ -1087,274 +953,6 @@ def _redacted_setup_action(step: dict[str, Any], *, action_type: str, value: str
 
 def _css_escape(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
-
-
-def _safe_page_title(page: Any) -> str:
-    try:
-        return page.title()
-    except Exception:
-        return ""
-
-
-def _execute_action(page: Any, state: dict[str, Any], action: BrowserAction) -> dict[str, Any]:
-    before_snapshot = _page_action_snapshot(page)
-    try:
-        before_url = page.url
-        if action.type == "none":
-            return _action_result(action.type, before_snapshot, _page_action_snapshot(page), ok=True)
-        if action.type == "wait":
-            page.wait_for_timeout(750)
-            return _action_result(action.type, before_snapshot, _page_action_snapshot(page), ok=True)
-        if action.type == "back":
-            page.go_back(wait_until="networkidle")
-            after_snapshot = _page_action_snapshot(page)
-            return _action_result(action.type, before_snapshot, after_snapshot, ok=True)
-        if action.type == "scroll":
-            page.mouse.wheel(0, 700)
-            page.wait_for_timeout(300)
-            return _action_result(action.type, before_snapshot, _page_action_snapshot(page), ok=True)
-        if action.type == "find":
-            found = _find_text_on_page(page, action.text or action.value or "")
-            page.wait_for_timeout(300)
-            return _action_result(action.type, before_snapshot, _page_action_snapshot(page), ok=True, found=found)
-        if not action.ref:
-            return _action_result(
-                action.type,
-                before_snapshot,
-                _page_action_snapshot(page),
-                ok=False,
-                error=f"Action {action.type} requires ref.",
-            )
-        locator = page.locator(f'[data-uxtest-ref="{action.ref}"]').first
-        if action.type == "click":
-            locator.click(timeout=5000)
-        elif action.type == "type":
-            locator.fill(action.value or action.text or "", timeout=5000)
-        elif action.type == "select":
-            locator.select_option(action.value or action.text or "", timeout=5000)
-        _wait_after_action(page, before_url)
-        return _action_result(action.type, before_snapshot, _page_action_snapshot(page), ok=True)
-    except Exception as exc:
-        return _action_result(action.type, before_snapshot, _page_action_snapshot(page), ok=False, error=str(exc))
-
-
-def _page_action_snapshot(page: Any) -> dict[str, Any]:
-    snapshot: dict[str, Any] = {
-        "url": _safe_page_url(page),
-        "open_pages": _safe_open_pages(page),
-        "text_hash": "",
-        "interactive_hash": "",
-        "expanded_count": 0,
-        "menu_like_count": 0,
-        "scroll_y": 0,
-    }
-    try:
-        dom = page.evaluate(
-            """
-            () => {
-              const visible = (el) => {
-                const style = window.getComputedStyle(el);
-                const rect = el.getBoundingClientRect();
-                return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
-              };
-              const text = (document.body?.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 20000);
-              const interactive = Array.from(document.querySelectorAll('a,button,input,select,textarea,[role="button"],[role="link"],[role="menuitem"]'))
-                .filter(visible)
-                .slice(0, 120)
-                .map((el) => [
-                  el.tagName.toLowerCase(),
-                  el.getAttribute('role') || '',
-                  el.getAttribute('aria-expanded') || '',
-                  el.getAttribute('aria-label') || '',
-                  el.getAttribute('href') || '',
-                  el.value || '',
-                  (el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 120)
-                ].join('|'))
-                .join('\\n');
-              const expandedCount = Array.from(document.querySelectorAll('[aria-expanded="true"],details[open]')).filter(visible).length;
-              const menuLikeCount = Array.from(document.querySelectorAll('[role="menu"],[role="menuitem"],[role="listbox"],[aria-expanded="true"],details[open]')).filter(visible).length;
-              return { text, interactive, expandedCount, menuLikeCount, scrollY: Math.round(window.scrollY || 0) };
-            }
-            """
-        )
-        if isinstance(dom, dict):
-            snapshot.update(
-                {
-                    "text_hash": _short_digest(str(dom.get("text") or "")),
-                    "interactive_hash": _short_digest(str(dom.get("interactive") or "")),
-                    "expanded_count": int(dom.get("expandedCount") or 0),
-                    "menu_like_count": int(dom.get("menuLikeCount") or 0),
-                    "scroll_y": int(dom.get("scrollY") or 0),
-                }
-            )
-    except Exception:
-        pass
-    return snapshot
-
-
-def _safe_page_url(page: Any) -> str:
-    try:
-        return str(page.url)
-    except Exception:
-        return ""
-
-
-def _safe_open_pages(page: Any) -> int:
-    try:
-        return len(page.context.pages)
-    except Exception:
-        return 0
-
-
-def _short_digest(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()[:16] if value else ""
-
-
-def _action_result(action_type: str, before: dict[str, Any], after: dict[str, Any], *, ok: bool, **extra: Any) -> dict[str, Any]:
-    classification = _classify_action_outcome(action_type, before, after, ok=ok, **extra)
-    result = {
-        "ok": ok,
-        "navigation": before.get("url") != after.get("url"),
-        "console_errors": 0,
-        "final_url": after.get("url"),
-        **classification,
-    }
-    result.update(extra)
-    return result
-
-
-def _classify_action_outcome(action_type: str, before: dict[str, Any], after: dict[str, Any], *, ok: bool, **extra: Any) -> dict[str, Any]:
-    before_url = str(before.get("url") or "")
-    after_url = str(after.get("url") or "")
-    before_open_pages = int(before.get("open_pages") or 0)
-    after_open_pages = int(after.get("open_pages") or 0)
-
-    if not ok:
-        outcome = "failed_action"
-    elif action_type == "none":
-        outcome = "none"
-    elif after_open_pages > before_open_pages:
-        outcome = "new_tab"
-    elif before_url != after_url:
-        outcome = "hash_change" if _without_fragment(before_url) == _without_fragment(after_url) else "url_navigation"
-    elif action_type == "wait":
-        outcome = "wait"
-    elif action_type == "scroll":
-        outcome = "scroll"
-    elif action_type == "find":
-        outcome = "find_found" if extra.get("found") else "find_not_found"
-    elif action_type in {"type", "select"}:
-        outcome = "form_change" if _snapshot_content_changed(before, after) else "no_visible_change"
-    elif int(after.get("expanded_count") or 0) > int(before.get("expanded_count") or 0) or int(after.get("menu_like_count") or 0) > int(before.get("menu_like_count") or 0):
-        outcome = "menu_opened"
-    elif int(after.get("expanded_count") or 0) < int(before.get("expanded_count") or 0) or int(after.get("menu_like_count") or 0) < int(before.get("menu_like_count") or 0):
-        outcome = "menu_closed"
-    elif _snapshot_content_changed(before, after):
-        outcome = "same_page_state_change"
-    elif int(before.get("scroll_y") or 0) != int(after.get("scroll_y") or 0):
-        outcome = "scroll_position_change"
-    else:
-        outcome = "no_visible_change"
-
-    return {
-        "action_outcome": outcome,
-        "state_change": outcome
-        in {
-            "url_navigation",
-            "hash_change",
-            "new_tab",
-            "menu_opened",
-            "menu_closed",
-            "same_page_state_change",
-            "scroll_position_change",
-            "form_change",
-            "scroll",
-            "find_found",
-        },
-        "url_change_type": _url_change_type(before_url, after_url),
-        "open_pages_delta": after_open_pages - before_open_pages,
-    }
-
-
-def _snapshot_content_changed(before: dict[str, Any], after: dict[str, Any]) -> bool:
-    return (
-        before.get("text_hash") != after.get("text_hash")
-        or before.get("interactive_hash") != after.get("interactive_hash")
-    )
-
-
-def _without_fragment(url: str) -> str:
-    parts = urlsplit(url)
-    return urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, ""))
-
-
-def _url_change_type(before_url: str, after_url: str) -> str:
-    if before_url == after_url:
-        return "none"
-    if _without_fragment(before_url) == _without_fragment(after_url):
-        return "hash"
-    before = urlsplit(before_url)
-    after = urlsplit(after_url)
-    if (before.scheme, before.netloc) != (after.scheme, after.netloc):
-        return "external"
-    if before.path != after.path:
-        return "path"
-    return "query"
-
-
-def _find_text_on_page(page: Any, text: str) -> bool:
-    target = re.sub(r"\s+", " ", text).strip()
-    if not target:
-        return False
-    return bool(
-        page.evaluate(
-            """
-            (target) => {
-              const needle = target.toLowerCase();
-              const candidates = Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6,a,button,p,li,dt,dd,div,section,article'))
-                .filter((el) => {
-                  const text = (el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim();
-                  if (!text || !text.toLowerCase().includes(needle)) return false;
-                  const style = window.getComputedStyle(el);
-                  return style.visibility !== 'hidden' && style.display !== 'none';
-                })
-                .sort((a, b) => {
-                  const ah = /^H[1-6]$/.test(a.tagName) ? 0 : 1;
-                  const bh = /^H[1-6]$/.test(b.tagName) ? 0 : 1;
-                  if (ah !== bh) return ah - bh;
-                  return a.getBoundingClientRect().top - b.getBoundingClientRect().top;
-                });
-              const found = candidates[0];
-              if (!found) {
-                return window.find(target, false, false, true, false, true, false);
-              }
-              found.scrollIntoView({ block: 'center', inline: 'nearest' });
-              return true;
-            }
-            """,
-            target,
-        )
-    )
-
-
-def _settle_page(page: Any) -> None:
-    try:
-        page.wait_for_load_state("domcontentloaded", timeout=2000)
-    except Exception:
-        pass
-    try:
-        page.wait_for_load_state("networkidle", timeout=2000)
-    except Exception:
-        pass
-    page.wait_for_timeout(150)
-
-
-def _wait_after_action(page: Any, before_url: str) -> None:
-    try:
-        page.wait_for_function("url => window.location.href !== url", arg=before_url, timeout=3000)
-    except Exception:
-        pass
-    _settle_page(page)
 
 
 def _trace_event(step: int, state: dict[str, Any], decision: BrowserDecision, result: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
