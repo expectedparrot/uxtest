@@ -1,0 +1,51 @@
+id: expectedparrot-information-architecture
+name: Expected Parrot Information Architecture
+mode: live-site-ia
+comparison_title: Expected Parrot Information Architecture Study
+comparison_output: expectedparrot-information-architecture.html
+url_template: https://www.expectedparrot.com/
+study_title: Expected Parrot IA ({variant})
+task: >
+  Starting from the Expected Parrot homepage, find information that helps you
+  evaluate the product in more detail: documentation, examples, product areas,
+  security/procurement evidence, support, or company information. Stop when you
+  find credible information or when you conclude the site does not make it
+  findable.
+success_criteria: >
+  The visitor finds a relevant information area and can explain whether the
+  navigation labels and page grouping made the evidence findable.
+runs_per_persona: 1
+driver: edsl
+max_steps: 8
+max_concurrent_runs: 1
+keep_runs: 8
+analysis_driver: local
+eval_policy: report_only
+animation_delay: 250
+animation_max_width: 640
+variants:
+  - name: developer-docs-desktop
+    device: desktop
+    personas:
+      - developer-builder
+    task: >
+      Starting from the Expected Parrot homepage, find documentation, code,
+      examples, API, EDSL, or developer-oriented evidence. Stop when you know
+      whether the technical material is findable.
+  - name: risk-reviewer-desktop
+    device: desktop
+    personas:
+      - enterprise-risk-reviewer
+    task: >
+      Starting from the Expected Parrot homepage, find company, trust,
+      security, procurement, support, or credibility information. Stop when you
+      know whether risk-review evidence is findable.
+  - name: research-director-mobile
+    device: iphone
+    personas:
+      - research-director
+    task: >
+      Starting from the Expected Parrot homepage on mobile, find product
+      examples or information that explains how the research tools work. Stop
+      when you know whether the mobile navigation makes that information
+      findable.

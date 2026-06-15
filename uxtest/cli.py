@@ -1,18 +1,24 @@
 from __future__ import annotations
 
 import argparse
-import difflib
 import json
 import shutil
 import socket
 import subprocess
 import sys
 import time
-from importlib import resources
 from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .package_resources import (
+    copy_resource_tree as _copy_resource_tree,
+    doc_resource as _doc_resource,
+    example_resource as _example_resource,
+    example_resource_path as _example_resource_path,
+    resource_as_file,
+    resource_files as _resource_files,
+)
 from .store import Store, StoreError, find_store
 
 
@@ -126,6 +132,22 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("--no-embed-resources", action="store_true", help="Do not ask pandoc to embed resources in HTML output.")
     report.set_defaults(func=cmd_report)
 
+    batch = sub.add_parser("batch", help="Run fixture batches and synthesize cross-study reports.")
+    batch_sub = batch.add_subparsers(dest="batch_command", required=True)
+    batch_report = batch_sub.add_parser("report", help="Generate a cross-study report from existing studies.")
+    batch_report.add_argument("name", help="Output/report name, for example expectedparrot-cross-study.")
+    batch_report.add_argument("--title", help="Report title. Defaults to name converted to title case.")
+    batch_report.add_argument("--study", action="append", dest="studies", required=True, help="Study id to include. Can be passed multiple times.")
+    batch_report.add_argument("--comparison", action="append", type=Path, dest="comparisons", help="Comparison HTML path to link. Can be passed multiple times.")
+    batch_report.add_argument("--format", action="append", help="Report format: md, html, pdf, or comma-separated list. Defaults to md.")
+    batch_report.add_argument("--output-dir", type=Path, help="Output directory. Defaults to .uxtest/comparisons.")
+    batch_report.set_defaults(func=cmd_batch_report)
+    batch_run = batch_sub.add_parser("run", help="Run fixture batch manifest and synthesize a cross-study report.")
+    batch_run.add_argument("manifest", type=Path, help="Batch YAML manifest listing fixture paths.")
+    batch_run.add_argument("--format", action="append", help="Report format: md, html, pdf, or comma-separated list. Defaults to manifest formats or md/html.")
+    batch_run.add_argument("--open", action="store_true", help="Open per-fixture comparison reports while running.")
+    batch_run.set_defaults(func=cmd_batch_run)
+
     humanize_export = sub.add_parser("humanize-export", help="Export an EDSL humanize script from study screenshots.")
     humanize_export.add_argument("id")
     humanize_export.add_argument(
@@ -144,6 +166,45 @@ def build_parser() -> argparse.ArgumentParser:
     humanize_export.add_argument("--output", type=Path, help="Output Python script path. Defaults to the study analysis directory.")
     humanize_export.add_argument("--survey-name", help="Default human survey name embedded in the generated script.")
     humanize_export.set_defaults(func=cmd_humanize_export)
+
+    agents = sub.add_parser("agents", help="Export rich EDSL agent lists from completed runs.")
+    agents_sub = agents.add_subparsers(dest="agents_command", required=True)
+    agents_export = agents_sub.add_parser("export", help="Write an EDSL AgentList script for a study.")
+    agents_export.add_argument("id")
+    agents_export.add_argument("--output", type=Path, help="Output Python script path. Defaults to the study analysis directory.")
+    agents_export.add_argument("--no-screenshots", action="store_true", help="Do not attach screenshot FileStores to exported agents.")
+    agents_export.set_defaults(func=cmd_agents_export)
+
+    interview = sub.add_parser("interview", help="Write an EDSL script to interview rich trace agents.")
+    interview.add_argument("id")
+    interview.add_argument("--model", default="gpt-4o")
+    interview.add_argument("--output", type=Path, help="Output Python script path. Defaults to the study analysis directory.")
+    interview.add_argument("--question", action="append", dest="questions", help="Question to ask each trace agent. Can be passed multiple times.")
+    interview.set_defaults(func=cmd_interview)
+
+    saliency = sub.add_parser("saliency", help="Generate visual-attention saliency overlays from study screenshots.")
+    saliency_sub = saliency.add_subparsers(dest="saliency_command", required=True)
+    saliency_run = saliency_sub.add_parser("run", help="Run saliency over selected study screenshots.")
+    saliency_run.add_argument("id")
+    saliency_run.add_argument("--engine", choices=["command"], default="command")
+    saliency_run.add_argument(
+        "--screenshots",
+        choices=["representative", "first", "last", "first-last", "high-frustration", "confusing", "all"],
+        default="representative",
+    )
+    saliency_run.add_argument("--max-screenshots", type=int, default=12)
+    saliency_run.add_argument("--output-dir", type=Path)
+    saliency_run.add_argument(
+        "--command-template",
+        help="External saliency command. Placeholders: {input}, {output}, {map}, {output_dir}, {scenario_id}.",
+    )
+    saliency_run.add_argument(
+        "--sum",
+        action="store_true",
+        help="Use a SUM-style command template. Set UXTEST_SUM_DIR to the SUM checkout.",
+    )
+    saliency_run.add_argument("--open", action="store_true", help="Open the generated saliency index.")
+    saliency_run.set_defaults(func=cmd_saliency_run)
 
     animate = sub.add_parser("animate", help="Generate per-run GIF animations from study screenshots.")
     animate.add_argument("id")
@@ -169,6 +230,30 @@ def build_parser() -> argparse.ArgumentParser:
     doctor = sub.add_parser("doctor", help="Check local uxtest, Playwright, pandoc, and EDSL setup.")
     doctor.add_argument("--json", action="store_true")
     doctor.set_defaults(func=cmd_doctor)
+
+    figma = sub.add_parser("figma", help="Import Figma frames and generate EDSL vision studies.")
+    figma_sub = figma.add_subparsers(dest="figma_command", required=True)
+    figma_doctor = figma_sub.add_parser("doctor", help="Check Figma environment setup.")
+    figma_doctor.add_argument("--json", action="store_true")
+    figma_doctor.set_defaults(func=cmd_figma_doctor)
+    figma_import = figma_sub.add_parser("import", help="Import Figma frame screenshots into .uxtest.")
+    figma_import.add_argument("url", help="Figma file/design/prototype URL.")
+    figma_import.add_argument("--frames", choices=["selected", "top-level", "all"], default="selected")
+    figma_import.add_argument("--limit", type=int, default=20, help="Maximum frames to import for top-level/all modes.")
+    figma_import.add_argument("--scale", type=float, default=2.0, help="Figma image export scale.")
+    figma_import.set_defaults(func=cmd_figma_import)
+    figma_study = figma_sub.add_parser("study", help="Generate an EDSL vision study script for imported Figma frames.")
+    figma_study.add_argument("url_or_import", help="Figma URL to import, or an existing Figma import id.")
+    figma_study.add_argument("--task", required=True)
+    figma_study.add_argument("--frames", choices=["selected", "top-level", "all"], default="selected")
+    figma_study.add_argument("--limit", type=int, default=20)
+    figma_study.add_argument("--scale", type=float, default=2.0)
+    figma_study.add_argument("--model", default="gpt-4o")
+    figma_study.add_argument("--output", type=Path)
+    figma_study.set_defaults(func=cmd_figma_study)
+    figma_report = figma_sub.add_parser("report", help="Write a Markdown report for a Figma import.")
+    figma_report.add_argument("import_id")
+    figma_report.set_defaults(func=cmd_figma_report)
 
     docs = sub.add_parser("docs", help="Discover bundled agent documentation.")
     docs_sub = docs.add_subparsers(dest="docs_command")
@@ -477,6 +562,38 @@ def cmd_report(args: argparse.Namespace) -> None:
         print(path.relative_to(store.root) if _is_relative_to(path, store.root) else path)
 
 
+def cmd_batch_report(args: argparse.Namespace) -> None:
+    from .batch_report import write_batch_report
+
+    store = find_store(override=args.store)
+    paths = write_batch_report(
+        store,
+        title=args.title or str(args.name).replace("-", " ").title(),
+        study_ids=args.studies,
+        comparison_paths=args.comparisons,
+        output_name=args.name,
+        formats=args.format,
+        output_dir=args.output_dir,
+    )
+    for path in paths:
+        print(path.relative_to(store.root) if _is_relative_to(path, store.root) else path)
+
+
+def cmd_batch_run(args: argparse.Namespace) -> None:
+    from .batch_report import run_batch_manifest
+
+    try:
+        store = find_store(override=args.store)
+    except StoreError as exc:
+        if exc.exit_code != 3:
+            raise
+        store = Store.init(Path.cwd(), project_name="uxtest-batch")
+        print(f"Initialized {store.path}")
+    paths = run_batch_manifest(store, args.manifest, formats=args.format, open_reports=args.open)
+    for path in paths:
+        print(path.relative_to(store.root) if _is_relative_to(path, store.root) else path)
+
+
 def cmd_humanize_export(args: argparse.Namespace) -> None:
     from .humanize_export import export_humanize_survey
 
@@ -492,6 +609,67 @@ def cmd_humanize_export(args: argparse.Namespace) -> None:
     )
     print(script_path.relative_to(store.root) if _is_relative_to(script_path, store.root) else script_path)
     print(manifest_path.relative_to(store.root) if _is_relative_to(manifest_path, store.root) else manifest_path)
+
+
+def cmd_agents_export(args: argparse.Namespace) -> None:
+    from .agent_export import export_agent_list
+
+    store = find_store(override=args.store)
+    script_path, manifest_path = export_agent_list(
+        store,
+        args.id,
+        output=args.output,
+        include_screenshots=not args.no_screenshots,
+    )
+    print(script_path.relative_to(store.root) if _is_relative_to(script_path, store.root) else script_path)
+    print(manifest_path.relative_to(store.root) if _is_relative_to(manifest_path, store.root) else manifest_path)
+
+
+def cmd_interview(args: argparse.Namespace) -> None:
+    from .agent_export import export_interview_script
+
+    store = find_store(override=args.store)
+    script_path, manifest_path = export_interview_script(
+        store,
+        args.id,
+        output=args.output,
+        model=args.model,
+        questions=args.questions,
+    )
+    print(script_path.relative_to(store.root) if _is_relative_to(script_path, store.root) else script_path)
+    print(manifest_path.relative_to(store.root) if _is_relative_to(manifest_path, store.root) else manifest_path)
+
+
+def cmd_saliency_run(args: argparse.Namespace) -> None:
+    from .saliency import run_saliency
+
+    store = find_store(override=args.store)
+    engine = args.engine
+    command_template = args.command_template
+    if args.sum:
+        engine = "command"
+        sum_dir = Path(os.environ.get("UXTEST_SUM_DIR", ".")).expanduser()
+        command_template = command_template or (
+            f"{sys.executable} {sum_dir / 'inference.py'} "
+            "--img_path {input} "
+            "--condition 3 "
+            "--output_path {output_dir} "
+            "--saliency_map_type Overlay"
+        )
+    root, manifest_path, html_path = run_saliency(
+        store,
+        args.id,
+        engine=engine,
+        screenshots=args.screenshots,
+        max_screenshots=args.max_screenshots,
+        output_dir=args.output_dir,
+        command_template=command_template,
+    )
+    print(root.relative_to(store.root) if _is_relative_to(root, store.root) else root)
+    print(manifest_path.relative_to(store.root) if _is_relative_to(manifest_path, store.root) else manifest_path)
+    print(html_path.relative_to(store.root) if _is_relative_to(html_path, store.root) else html_path)
+    if args.open:
+        subprocess.run(["open", str(html_path)], check=False)
 
 
 def cmd_animate(args: argparse.Namespace) -> None:
@@ -554,7 +732,7 @@ def cmd_docs_list(args: argparse.Namespace) -> None:
 
 def cmd_docs_path(args: argparse.Namespace) -> None:
     resource = _doc_resource(args.name)
-    with resources.as_file(resource) as path:
+    with resource_as_file(resource) as path:
         print(path)
 
 
@@ -565,7 +743,7 @@ def cmd_docs_show(args: argparse.Namespace) -> None:
 
 def cmd_docs_open(args: argparse.Namespace) -> None:
     resource = _doc_resource(args.name)
-    with resources.as_file(resource) as path:
+    with resource_as_file(resource) as path:
         subprocess.run(["open", str(path)], check=False)
 
 
@@ -579,6 +757,72 @@ def cmd_doctor(args: argparse.Namespace) -> None:
         print(f"{status:7} {check['name']}: {check['detail']}")
         if not check["ok"] and check.get("fix"):
             print(f"        fix: {check['fix']}")
+
+
+def cmd_figma_doctor(args: argparse.Namespace) -> None:
+    from .figma import figma_doctor
+
+    checks = figma_doctor()
+    if args.json:
+        print(json.dumps(checks, indent=2, sort_keys=True))
+        return
+    for check in checks:
+        status = "ok" if check["ok"] else "missing"
+        print(f"{status:7} {check['name']}: {check['detail']}")
+        if not check["ok"] and check.get("fix"):
+            print(f"        fix: {check['fix']}")
+
+
+def cmd_figma_import(args: argparse.Namespace) -> None:
+    from .figma import import_figma_frames
+
+    store = _find_or_init_store(args.store)
+    import_dir, manifest_path = import_figma_frames(
+        store,
+        args.url,
+        frames=args.frames,
+        limit=args.limit,
+        scale=args.scale,
+    )
+    print(import_dir.relative_to(store.root))
+    print(manifest_path.relative_to(store.root))
+
+
+def cmd_figma_study(args: argparse.Namespace) -> None:
+    from .figma import import_figma_frames, parse_figma_url, write_figma_study_script
+
+    store = _find_or_init_store(args.store)
+    import_id = args.url_or_import
+    try:
+        parse_figma_url(args.url_or_import)
+    except StoreError:
+        pass
+    else:
+        import_dir, _manifest_path = import_figma_frames(
+            store,
+            args.url_or_import,
+            frames=args.frames,
+            limit=args.limit,
+            scale=args.scale,
+        )
+        import_id = import_dir.name
+    script_path, manifest_path = write_figma_study_script(
+        store,
+        import_id,
+        task=args.task,
+        model=args.model,
+        output=args.output,
+    )
+    print(script_path.relative_to(store.root) if _is_relative_to(script_path, store.root) else script_path)
+    print(manifest_path.relative_to(store.root) if _is_relative_to(manifest_path, store.root) else manifest_path)
+
+
+def cmd_figma_report(args: argparse.Namespace) -> None:
+    from .figma import write_figma_report
+
+    store = find_store(override=args.store)
+    report_path = write_figma_report(store, args.import_id)
+    print(report_path.relative_to(store.root))
 
 
 def cmd_examples_list(args: argparse.Namespace) -> None:
@@ -1027,143 +1271,26 @@ def _doctor_checks() -> list[dict[str, Any]]:
     return checks
 
 
+def _find_or_init_store(override: str | Path | None) -> Store:
+    try:
+        return find_store(override=override)
+    except StoreError as exc:
+        if exc.exit_code != 3:
+            raise
+        root = Path(override).expanduser() if override else Path.cwd()
+        if root.name == ".uxtest":
+            root = root.parent
+        store = Store.init(root, project_name="uxtest")
+        print(f"Initialized {store.path}")
+        return store
+
+
 def _is_relative_to(path: Path, parent: Path) -> bool:
     try:
         path.resolve().relative_to(parent.resolve())
         return True
     except ValueError:
         return False
-
-
-DOC_ALIASES = {
-    "root": "README.md",
-    "readme": "README.md",
-    "spec": "SPEC.md",
-    "study-types": "study_types/README.md",
-    "study_types": "study_types/README.md",
-    "accessibility-inclusive-ux": "study_types/accessibility_inclusive_ux/README.md",
-    "accessibility_inclusive_ux": "study_types/accessibility_inclusive_ux/README.md",
-    "competitive-benchmark-studies": "study_types/competitive_benchmark_studies/README.md",
-    "competitive_benchmark_studies": "study_types/competitive_benchmark_studies/README.md",
-    "content-comprehension": "study_types/content_comprehension/README.md",
-    "content_comprehension": "study_types/content_comprehension/README.md",
-    "conversion-path-testing": "study_types/conversion_path_testing/README.md",
-    "conversion_path_testing": "study_types/conversion_path_testing/README.md",
-    "enterprise-buying-research": "study_types/enterprise_buying_research/README.md",
-    "enterprise_buying_research": "study_types/enterprise_buying_research/README.md",
-    "feature-findability": "study_types/feature_findability/README.md",
-    "feature_findability": "study_types/feature_findability/README.md",
-    "information-architecture": "study_types/information_architecture/README.md",
-    "information_architecture": "study_types/information_architecture/README.md",
-    "longitudinal-regression": "study_types/longitudinal_regression/README.md",
-    "longitudinal_regression": "study_types/longitudinal_regression/README.md",
-    "onboarding-activation": "study_types/onboarding_activation/README.md",
-    "onboarding_activation": "study_types/onboarding_activation/README.md",
-    "post-login-workflow-testing": "study_types/post_login_workflow_testing/README.md",
-    "post_login_workflow_testing": "study_types/post_login_workflow_testing/README.md",
-    "task-discovery": "study_types/task_discovery/README.md",
-    "task_discovery": "study_types/task_discovery/README.md",
-}
-
-EXAMPLE_ALIASES = {
-    "all": "",
-    "expectedparrot": "expectedparrot_site",
-    "expectedparrot-enterprise-demo": "expectedparrot_site/enterprise-demo.yaml",
-    "expectedparrot-credibility": "expectedparrot_site/credibility.yaml",
-    "jjh": "jjh_site",
-    "jjh-discovery": "jjh_site/discovery.yaml",
-    "jjh-targeted": "jjh_site/targeted.yaml",
-    "saas": "saas_site",
-    "saas-regression": "saas_site/regression.yaml",
-    "saas-regression-edsl": "saas_site/regression-edsl.yaml",
-    "task-discovery": "study_types/task_discovery/README.md",
-}
-
-
-def _resource_root(kind: str) -> Any:
-    root = resources.files("uxtest").joinpath("resources", kind)
-    if not root.is_dir():
-        raise StoreError(f"Bundled {kind} resources are unavailable.", exit_code=1)
-    return root
-
-
-def _resource_files(kind: str, *, suffixes: tuple[str, ...] | None = None) -> list[str]:
-    root = _resource_root(kind)
-    output: list[str] = []
-
-    def walk(node: Any, prefix: str = "") -> None:
-        for child in sorted(node.iterdir(), key=lambda item: item.name):
-            child_path = f"{prefix}{child.name}"
-            if child.is_dir():
-                walk(child, f"{child_path}/")
-            elif suffixes is None or child.name.endswith(suffixes):
-                output.append(child_path)
-
-    walk(root)
-    return output
-
-
-def _doc_resource(name: str) -> Any:
-    requested = DOC_ALIASES.get(name, name)
-    return _resolve_resource("docs", requested)
-
-
-def _example_resource(name: str) -> Any:
-    requested = EXAMPLE_ALIASES.get(name, name)
-    return _resolve_resource("examples", requested)
-
-
-_RESOURCE_CONTEXTS: list[Any] = []
-
-
-def _example_resource_path(relative_path: str) -> Path:
-    resource = _example_resource(relative_path)
-    context = resources.as_file(resource)
-    path = context.__enter__()
-    _RESOURCE_CONTEXTS.append(context)
-    return path
-
-
-def _resolve_resource(kind: str, requested: str) -> Any:
-    root = _resource_root(kind)
-    normalized = requested.strip("/")
-    if kind == "docs":
-        normalized = _normalize_doc_request(normalized)
-    resource = root if not normalized else root.joinpath(*Path(normalized).parts)
-    if not resource.exists():
-        available_files = _resource_files(kind)
-        suggestions = difflib.get_close_matches(normalized or requested, available_files, n=5, cutoff=0.35)
-        suffix_matches = [path for path in available_files if path.endswith(normalized) or normalized in path]
-        hints = suggestions or suffix_matches[:5]
-        available = ", ".join(available_files[:20])
-        hint_text = f" Did you mean: {', '.join(hints)}?" if hints else ""
-        raise StoreError(f"Bundled {kind} resource {requested!r} not found.{hint_text} Available: {available}", exit_code=2)
-    return resource
-
-
-def _normalize_doc_request(value: str) -> str:
-    if not value:
-        return value
-    if value in DOC_ALIASES:
-        return DOC_ALIASES[value]
-    path = Path(value)
-    if len(path.parts) == 2 and path.parts[1] == "README.md":
-        return f"study_types/{path.parts[0]}/README.md"
-    if len(path.parts) == 1 and not value.endswith(".md"):
-        underscored = value.replace("-", "_")
-        return DOC_ALIASES.get(underscored, value)
-    return value
-
-
-def _copy_resource_tree(resource: Any, dest: Path) -> None:
-    for child in resource.iterdir():
-        target = dest / child.name
-        if child.is_dir():
-            target.mkdir(parents=True, exist_ok=True)
-            _copy_resource_tree(child, target)
-        else:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(child.read_bytes())
 
 
 DEVICE_PROFILES: dict[str, dict] = {

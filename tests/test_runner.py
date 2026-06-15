@@ -5,8 +5,9 @@ from pathlib import Path
 from uxtest import runner
 from uxtest.cli import _doc_resource, _example_resource, _parse_viewport, _resource_files
 from uxtest.fixtures import _fixture_run_overrides
-from uxtest.runner import _redact_text, _redacted_setup_action, _setup_step_value
+from uxtest.runner import _classify_action_outcome, _redact_text, _redacted_setup_action, _setup_step_value
 from uxtest.store import Store, read_yaml
+from uxtest.stop_quality import classify_run_stop_quality
 
 
 def test_run_study_preallocates_unique_run_ids(tmp_path, monkeypatch):
@@ -140,6 +141,84 @@ def test_setup_step_value_reads_env_and_redacts(monkeypatch):
 
 def test_redact_text_applies_patterns():
     assert _redact_text("token=abc123", {"redact_patterns": ["abc[0-9]+"]}) == "token=[REDACTED]"
+
+
+def test_action_outcome_classifier_distinguishes_url_hash_and_tabs():
+    before = {"url": "https://example.com/page", "open_pages": 1}
+
+    nav = _classify_action_outcome("click", before, {"url": "https://example.com/other", "open_pages": 1}, ok=True)
+    hash_change = _classify_action_outcome("click", before, {"url": "https://example.com/page#details", "open_pages": 1}, ok=True)
+    new_tab = _classify_action_outcome("click", before, {"url": "https://example.com/page", "open_pages": 2}, ok=True)
+
+    assert nav["action_outcome"] == "url_navigation"
+    assert nav["url_change_type"] == "path"
+    assert hash_change["action_outcome"] == "hash_change"
+    assert hash_change["url_change_type"] == "hash"
+    assert new_tab["action_outcome"] == "new_tab"
+    assert new_tab["open_pages_delta"] == 1
+
+
+def test_action_outcome_classifier_distinguishes_menu_state_and_noop():
+    before = {
+        "url": "https://example.com/page",
+        "open_pages": 1,
+        "text_hash": "a",
+        "interactive_hash": "a",
+        "expanded_count": 0,
+        "menu_like_count": 0,
+    }
+    menu = dict(before, expanded_count=1, menu_like_count=2)
+    state = dict(before, text_hash="b")
+
+    assert _classify_action_outcome("click", before, menu, ok=True)["action_outcome"] == "menu_opened"
+    assert _classify_action_outcome("click", before, state, ok=True)["action_outcome"] == "same_page_state_change"
+    assert _classify_action_outcome("click", before, before, ok=True)["action_outcome"] == "no_visible_change"
+
+
+def test_action_outcome_classifier_treats_missing_find_as_observed_result():
+    before = {"url": "https://example.com/page", "open_pages": 1}
+
+    result = _classify_action_outcome("find", before, before, ok=True, found=False)
+
+    assert result["action_outcome"] == "find_not_found"
+    assert result["state_change"] is False
+
+
+def test_stop_quality_classifier_detects_enough_evidence_before_max_steps():
+    meta = {"outcome": "max_steps", "final_url": "https://example.test/company"}
+    trace = [
+        {
+            "step": 1,
+            "url": "https://example.test",
+            "thinking": "I understand the site is for AI simulation research. My next step would be Products.",
+            "result": {"action_outcome": "url_navigation"},
+        },
+        {
+            "step": 2,
+            "url": "https://example.test/company",
+            "thinking": "I will keep exploring.",
+            "result": {"action_outcome": "menu_opened"},
+        },
+    ]
+
+    quality = classify_run_stop_quality(meta, trace)
+
+    assert quality["class"] == "enough_evidence_but_continued"
+    assert quality["step"] == 1
+
+
+def test_stop_quality_classifier_detects_auth_and_no_visible_advance():
+    auth = classify_run_stop_quality(
+        {"outcome": "max_steps", "final_url": "https://example.test/login"},
+        [{"step": 1, "url": "https://example.test", "result": {"final_url": "https://example.test/login"}}],
+    )
+    no_advance = classify_run_stop_quality(
+        {"outcome": "max_steps", "final_url": "https://example.test"},
+        [{"step": 1, "url": "https://example.test", "result": {"action_outcome": "no_visible_change"}}],
+    )
+
+    assert auth["class"] == "blocked_by_auth"
+    assert no_advance["class"] == "blocked_by_no_visible_advance"
 
 
 def test_bundled_docs_and_examples_are_discoverable():

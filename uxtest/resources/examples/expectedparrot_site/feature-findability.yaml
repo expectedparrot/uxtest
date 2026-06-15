@@ -1,0 +1,51 @@
+id: expectedparrot-feature-findability
+name: Expected Parrot Feature Findability
+mode: live-site-feature-findability
+comparison_title: Expected Parrot Feature Findability Study
+comparison_output: expectedparrot-feature-findability.html
+url_template: https://www.expectedparrot.com/
+study_title: Expected Parrot Feature Findability ({variant})
+task: >
+  Starting from the Expected Parrot homepage, determine whether Expected Parrot
+  supports programmable or automated research workflows through EDSL, examples,
+  APIs, or developer-oriented docs. Find the strongest evidence you can. Stop
+  when you are confident the capability exists, confident it does not, or
+  blocked.
+success_criteria: >
+  The visitor finds EDSL, documentation, examples, code, API, or automation
+  evidence sufficient to judge whether programmable research workflows are
+  supported.
+runs_per_persona: 1
+driver: edsl
+max_steps: 8
+max_concurrent_runs: 1
+keep_runs: 8
+analysis_driver: local
+eval_policy: report_only
+animation_delay: 250
+animation_max_width: 640
+variants:
+  - name: developer-desktop
+    device: desktop
+    personas:
+      - developer-builder
+  - name: survey-ops-desktop
+    device: desktop
+    personas:
+      - survey-ops-manager
+  - name: academic-mobile
+    device: iphone
+    personas:
+      - academic-researcher
+checks:
+  - id: finds_programmable_research_evidence
+    type: trace_contains
+    text_any:
+      - EDSL
+      - docs
+      - documentation
+      - examples
+      - API
+      - code
+      - Python
+    description: Trace should contain programmable research evidence terms.

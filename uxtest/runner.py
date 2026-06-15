@@ -8,11 +8,13 @@ import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlsplit, urlunsplit
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, StrictStr
 
 from .store import Store, StoreError, atomic_write_json, utc_now
+from .stop_quality import compact_stop_hint, event_has_enough_evidence
 
 
 ActionType = Literal["click", "type", "scroll", "find", "select", "back", "wait", "none"]
@@ -711,8 +713,10 @@ def _decision_from_answer(
 
 
 def _with_recovery_hint(recent_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    stop_hint = compact_stop_hint(recent_events)
+    events_with_hint = [*recent_events, stop_hint] if stop_hint else recent_events
     if len(recent_events) < 2:
-        return recent_events
+        return events_with_hint
     previous, latest = recent_events[-2], recent_events[-1]
     previous_action = previous.get("action") or {}
     latest_action = latest.get("action") or {}
@@ -731,9 +735,9 @@ def _with_recovery_hint(recent_events: list[dict[str, Any]]) -> list[dict[str, A
     )
     non_navigation = previous_result.get("navigation") is False and latest_result.get("navigation") is False
     if not same_action or not non_navigation:
-        return recent_events
+        return events_with_hint
     return [
-        *recent_events,
+        *events_with_hint,
         {
             "event_type": "recovery_hint",
             "message": "The last two actions repeated without navigation or visible progress. Choose a different strategy: find a heading/topic, scroll, go back, or finish if enough evidence has been gathered.",
@@ -1093,26 +1097,34 @@ def _safe_page_title(page: Any) -> str:
 
 
 def _execute_action(page: Any, state: dict[str, Any], action: BrowserAction) -> dict[str, Any]:
+    before_snapshot = _page_action_snapshot(page)
     try:
         before_url = page.url
         if action.type == "none":
-            return {"ok": True, "navigation": False, "console_errors": 0}
+            return _action_result(action.type, before_snapshot, _page_action_snapshot(page), ok=True)
         if action.type == "wait":
             page.wait_for_timeout(750)
-            return {"ok": True, "navigation": False, "console_errors": 0}
+            return _action_result(action.type, before_snapshot, _page_action_snapshot(page), ok=True)
         if action.type == "back":
             page.go_back(wait_until="networkidle")
-            return {"ok": True, "navigation": page.url != before_url, "console_errors": 0, "final_url": page.url}
+            after_snapshot = _page_action_snapshot(page)
+            return _action_result(action.type, before_snapshot, after_snapshot, ok=True)
         if action.type == "scroll":
             page.mouse.wheel(0, 700)
             page.wait_for_timeout(300)
-            return {"ok": True, "navigation": False, "console_errors": 0}
+            return _action_result(action.type, before_snapshot, _page_action_snapshot(page), ok=True)
         if action.type == "find":
             found = _find_text_on_page(page, action.text or action.value or "")
             page.wait_for_timeout(300)
-            return {"ok": found, "navigation": False, "console_errors": 0, "found": found}
+            return _action_result(action.type, before_snapshot, _page_action_snapshot(page), ok=True, found=found)
         if not action.ref:
-            return {"ok": False, "error": f"Action {action.type} requires ref.", "navigation": False, "console_errors": 0}
+            return _action_result(
+                action.type,
+                before_snapshot,
+                _page_action_snapshot(page),
+                ok=False,
+                error=f"Action {action.type} requires ref.",
+            )
         locator = page.locator(f'[data-uxtest-ref="{action.ref}"]').first
         if action.type == "click":
             locator.click(timeout=5000)
@@ -1121,9 +1133,173 @@ def _execute_action(page: Any, state: dict[str, Any], action: BrowserAction) -> 
         elif action.type == "select":
             locator.select_option(action.value or action.text or "", timeout=5000)
         _wait_after_action(page, before_url)
-        return {"ok": True, "navigation": page.url != before_url, "console_errors": 0, "final_url": page.url}
+        return _action_result(action.type, before_snapshot, _page_action_snapshot(page), ok=True)
     except Exception as exc:
-        return {"ok": False, "error": str(exc), "navigation": page.url != before_url if 'before_url' in locals() else False, "console_errors": 0, "final_url": page.url}
+        return _action_result(action.type, before_snapshot, _page_action_snapshot(page), ok=False, error=str(exc))
+
+
+def _page_action_snapshot(page: Any) -> dict[str, Any]:
+    snapshot: dict[str, Any] = {
+        "url": _safe_page_url(page),
+        "open_pages": _safe_open_pages(page),
+        "text_hash": "",
+        "interactive_hash": "",
+        "expanded_count": 0,
+        "menu_like_count": 0,
+        "scroll_y": 0,
+    }
+    try:
+        dom = page.evaluate(
+            """
+            () => {
+              const visible = (el) => {
+                const style = window.getComputedStyle(el);
+                const rect = el.getBoundingClientRect();
+                return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+              };
+              const text = (document.body?.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 20000);
+              const interactive = Array.from(document.querySelectorAll('a,button,input,select,textarea,[role="button"],[role="link"],[role="menuitem"]'))
+                .filter(visible)
+                .slice(0, 120)
+                .map((el) => [
+                  el.tagName.toLowerCase(),
+                  el.getAttribute('role') || '',
+                  el.getAttribute('aria-expanded') || '',
+                  el.getAttribute('aria-label') || '',
+                  el.getAttribute('href') || '',
+                  el.value || '',
+                  (el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 120)
+                ].join('|'))
+                .join('\\n');
+              const expandedCount = Array.from(document.querySelectorAll('[aria-expanded="true"],details[open]')).filter(visible).length;
+              const menuLikeCount = Array.from(document.querySelectorAll('[role="menu"],[role="menuitem"],[role="listbox"],[aria-expanded="true"],details[open]')).filter(visible).length;
+              return { text, interactive, expandedCount, menuLikeCount, scrollY: Math.round(window.scrollY || 0) };
+            }
+            """
+        )
+        if isinstance(dom, dict):
+            snapshot.update(
+                {
+                    "text_hash": _short_digest(str(dom.get("text") or "")),
+                    "interactive_hash": _short_digest(str(dom.get("interactive") or "")),
+                    "expanded_count": int(dom.get("expandedCount") or 0),
+                    "menu_like_count": int(dom.get("menuLikeCount") or 0),
+                    "scroll_y": int(dom.get("scrollY") or 0),
+                }
+            )
+    except Exception:
+        pass
+    return snapshot
+
+
+def _safe_page_url(page: Any) -> str:
+    try:
+        return str(page.url)
+    except Exception:
+        return ""
+
+
+def _safe_open_pages(page: Any) -> int:
+    try:
+        return len(page.context.pages)
+    except Exception:
+        return 0
+
+
+def _short_digest(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()[:16] if value else ""
+
+
+def _action_result(action_type: str, before: dict[str, Any], after: dict[str, Any], *, ok: bool, **extra: Any) -> dict[str, Any]:
+    classification = _classify_action_outcome(action_type, before, after, ok=ok, **extra)
+    result = {
+        "ok": ok,
+        "navigation": before.get("url") != after.get("url"),
+        "console_errors": 0,
+        "final_url": after.get("url"),
+        **classification,
+    }
+    result.update(extra)
+    return result
+
+
+def _classify_action_outcome(action_type: str, before: dict[str, Any], after: dict[str, Any], *, ok: bool, **extra: Any) -> dict[str, Any]:
+    before_url = str(before.get("url") or "")
+    after_url = str(after.get("url") or "")
+    before_open_pages = int(before.get("open_pages") or 0)
+    after_open_pages = int(after.get("open_pages") or 0)
+
+    if not ok:
+        outcome = "failed_action"
+    elif action_type == "none":
+        outcome = "none"
+    elif after_open_pages > before_open_pages:
+        outcome = "new_tab"
+    elif before_url != after_url:
+        outcome = "hash_change" if _without_fragment(before_url) == _without_fragment(after_url) else "url_navigation"
+    elif action_type == "wait":
+        outcome = "wait"
+    elif action_type == "scroll":
+        outcome = "scroll"
+    elif action_type == "find":
+        outcome = "find_found" if extra.get("found") else "find_not_found"
+    elif action_type in {"type", "select"}:
+        outcome = "form_change" if _snapshot_content_changed(before, after) else "no_visible_change"
+    elif int(after.get("expanded_count") or 0) > int(before.get("expanded_count") or 0) or int(after.get("menu_like_count") or 0) > int(before.get("menu_like_count") or 0):
+        outcome = "menu_opened"
+    elif int(after.get("expanded_count") or 0) < int(before.get("expanded_count") or 0) or int(after.get("menu_like_count") or 0) < int(before.get("menu_like_count") or 0):
+        outcome = "menu_closed"
+    elif _snapshot_content_changed(before, after):
+        outcome = "same_page_state_change"
+    elif int(before.get("scroll_y") or 0) != int(after.get("scroll_y") or 0):
+        outcome = "scroll_position_change"
+    else:
+        outcome = "no_visible_change"
+
+    return {
+        "action_outcome": outcome,
+        "state_change": outcome
+        in {
+            "url_navigation",
+            "hash_change",
+            "new_tab",
+            "menu_opened",
+            "menu_closed",
+            "same_page_state_change",
+            "scroll_position_change",
+            "form_change",
+            "scroll",
+            "find_found",
+        },
+        "url_change_type": _url_change_type(before_url, after_url),
+        "open_pages_delta": after_open_pages - before_open_pages,
+    }
+
+
+def _snapshot_content_changed(before: dict[str, Any], after: dict[str, Any]) -> bool:
+    return (
+        before.get("text_hash") != after.get("text_hash")
+        or before.get("interactive_hash") != after.get("interactive_hash")
+    )
+
+
+def _without_fragment(url: str) -> str:
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, ""))
+
+
+def _url_change_type(before_url: str, after_url: str) -> str:
+    if before_url == after_url:
+        return "none"
+    if _without_fragment(before_url) == _without_fragment(after_url):
+        return "hash"
+    before = urlsplit(before_url)
+    after = urlsplit(after_url)
+    if (before.scheme, before.netloc) != (after.scheme, after.netloc):
+        return "external"
+    if before.path != after.path:
+        return "path"
+    return "query"
 
 
 def _find_text_on_page(page: Any, text: str) -> bool:
@@ -1182,7 +1358,7 @@ def _wait_after_action(page: Any, before_url: str) -> None:
 
 
 def _trace_event(step: int, state: dict[str, Any], decision: BrowserDecision, result: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
-    return {
+    event = {
         "schema_version": 1,
         "event_type": "step",
         "step": step,
@@ -1211,6 +1387,11 @@ def _trace_event(step: int, state: dict[str, Any], decision: BrowserDecision, re
         "frustration": decision.frustration,
         "status": decision.status,
     }
+    event["stop_signal"] = {
+        "enough_evidence": decision.status == "done" or event_has_enough_evidence(event),
+        "should_stop_if_exploratory": decision.status == "done" or event_has_enough_evidence(event),
+    }
+    return event
 
 
 def _compact_trace_event(event: dict[str, Any]) -> dict[str, Any]:
@@ -1221,6 +1402,7 @@ def _compact_trace_event(event: dict[str, Any]) -> dict[str, Any]:
         "action": event.get("action"),
         "result": event.get("result"),
         "frustration": event.get("frustration"),
+        "stop_signal": event.get("stop_signal"),
     }
 
 

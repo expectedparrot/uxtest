@@ -47,6 +47,86 @@ could include:
 For ecommerce, use intent differences such as price-sensitive shopper,
 repeat buyer, gift buyer, and low-confidence first-time buyer.
 
+## Using An Existing EDSL AgentList
+
+If you already have an EDSL `AgentList`, export personas whose conversion
+thresholds differ. For this study type, the key traits are intent, confidence
+requirements, tolerance for forms, and what proof they need before taking the
+target action.
+
+Example:
+
+```python
+from pathlib import Path
+
+import yaml
+from edsl import Agent, AgentList
+
+
+agents = AgentList(
+    [
+        Agent(
+            name="enterprise-buyer",
+            traits={
+                "role": "enterprise buyer",
+                "conversion_goal": "schedule a demo if the company looks credible",
+                "proof_needed": "category clarity, customer proof, enterprise trust",
+                "form_tolerance": "medium",
+            },
+            instruction=(
+                "Looks for enough confidence before using demo, contact-sales, "
+                "or request-information paths."
+            ),
+        ),
+        Agent(
+            name="technical-evaluator",
+            traits={
+                "role": "technical evaluator",
+                "conversion_goal": "continue only if technical proof exists",
+                "proof_needed": "docs, implementation details, API, examples",
+                "form_tolerance": "low",
+            },
+            instruction=(
+                "Will detour into docs or examples before committing to a demo "
+                "or sales form."
+            ),
+        ),
+    ]
+)
+
+
+def slug(value: str) -> str:
+    return "".join(ch if ch.isalnum() else "-" for ch in value.lower()).strip("-")
+
+
+out_dir = Path(".uxtest/personas")
+out_dir.mkdir(parents=True, exist_ok=True)
+
+for agent in agents:
+    name = slug(agent.name or agent.traits.get("role", "persona"))
+    persona = {
+        "schema_version": 1,
+        "name": name,
+        "description": agent.traits.get("role", name),
+        "attributes": dict(agent.traits),
+        "accessibility": {},
+        "goals_bias": getattr(agent, "instruction", "") or "",
+        "frustration": {"threshold": 6, "per_step_decay": 1},
+    }
+    (out_dir / f"{name}.yaml").write_text(
+        yaml.safe_dump(persona, sort_keys=False),
+        encoding="utf-8",
+    )
+```
+
+Then reference those persona names in the fixture:
+
+```yaml
+personas:
+  - enterprise-buyer
+  - technical-evaluator
+```
+
 ## Basic Fixture
 
 ```yaml
@@ -81,6 +161,36 @@ variants:
     device: iphone
 ```
 
+Save this as:
+
+```text
+examples/<site_or_product>/conversion-path.yaml
+```
+
+For live public sites, keep `max_concurrent_runs` low. Conversion studies often
+open forms, docs, pricing, and contact pages, so a large persona/variant matrix
+can create unnecessary traffic.
+
+## How To Run
+
+From the package root:
+
+```bash
+uv run uxtest ci examples/<site_or_product>/conversion-path.yaml
+```
+
+Open the comparison report:
+
+```text
+.uxtest/comparisons/acme-demo-path.html
+```
+
+Then inspect individual run logs:
+
+```text
+.uxtest/studies/<study-id>/analysis/log.html
+```
+
 ## What To Inspect
 
 Start with `log.html` and the animation index. Look for:
@@ -91,6 +201,30 @@ Start with `log.html` and the animation index. Look for:
 - form fields that create hesitation
 - mobile navigation problems
 - final URL and final visible page state
+
+## How To Interpret Results
+
+A conversion path run has two separate outcomes:
+
+1. **Path outcome**
+   Did the visitor reach the intended next step?
+
+2. **Confidence outcome**
+   Did they reach it with enough understanding and trust to continue?
+
+Read traces for first-click intent, route confidence, detours, form hesitation,
+and whether the final page actually matches the task. A visible CTA is not
+enough if visitors treat it as login, self-serve signup, support, or a generic
+"learn more" path.
+
+When a persona does not convert, classify the failure:
+
+- **Scent failure**: the right path was present but not recognizable.
+- **Evidence failure**: the path was visible before confidence was earned.
+- **Routing failure**: the visitor landed in login, docs, support, or another
+  adjacent flow.
+- **Form failure**: required fields or commitment level stopped progress.
+- **Device failure**: mobile navigation hid or delayed the target path.
 
 ## Useful Eval Checks
 
@@ -140,3 +274,56 @@ Use this outline:
 5. Conversion friction: labels, forms, missing proof, or mobile nav.
 6. Conclusions: what blocks or helps conversion.
 7. Follow-on steps: CTA copy, nav changes, form changes, and regression checks.
+
+## Example Narrative Summary
+
+Use a style like this:
+
+```text
+This conversion path study tested whether enterprise visitors could move from
+the homepage to a demo request. Most visitors found a plausible demo or contact
+route, but the path was not equally confident: the buyer clicked the primary CTA
+quickly, while the technical evaluator detoured into documentation before
+considering a demo. Mobile runs showed more menu exploration before the same
+path became visible. The main issue is not that the demo route is absent; it is
+that the route asks for commitment before some personas have found enough proof.
+The next step is to pair the demo CTA with nearby credibility, implementation,
+and security evidence, then rerun this fixture as a regression check.
+```
+
+## Optional Human Screenshot Validation
+
+Export screenshots to EDSL human respondents when you want to validate first
+click intent or form hesitation:
+
+```bash
+uv run uxtest humanize-export <study-id> \
+  --template conversion-path \
+  --screenshots representative \
+  --max-screenshots 8
+```
+
+Review and launch the generated survey:
+
+```bash
+uv run python .uxtest/studies/<study-id>/analysis/humanize_survey.py
+uv run python .uxtest/studies/<study-id>/analysis/humanize_survey.py --launch
+```
+
+Useful human questions include:
+
+- Which button or link would you click to complete this task?
+- What would stop you from submitting this form?
+- Do you feel ready to schedule a demo from this screen?
+
+The generated survey uses EDSL `humanize_schema` and `custom_css`, so screenshot
+size and button-style answer presentation can be edited before launch.
+
+## Follow-On Studies
+
+Conversion path testing usually leads to:
+
+- Enterprise buying research: what proof is missing before the conversion ask?
+- Content comprehension: do visitors understand the CTA and offer?
+- Information architecture: can visitors find supporting proof from the path?
+- Longitudinal regression: did CTA, nav, or form changes improve the path?

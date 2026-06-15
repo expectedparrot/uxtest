@@ -1,12 +1,15 @@
 # UXR Study Type Examples
 
 This directory organizes reusable `uxtest` examples by common UXR jobs to be
-done. Each subfolder is intended to contain:
+done. Each subfolder contains:
 
 - a Markdown guide explaining when and how to run that study type
-- one or more fixture YAML files
-- optional expected-flaw/eval YAML files
+- an EDSL `AgentList` persona export pattern
+- a fixture template and run command
+- `log.html` inspection guidance
 - notes about how to interpret technical and narrative reports
+- human screenshot validation guidance
+- follow-on study suggestions
 
 Available study types:
 

@@ -1,0 +1,13 @@
+id: expectedparrot-cross-study
+title: Expected Parrot Cross-Study UX Research Report
+formats:
+  - md
+  - html
+fixtures:
+  - task-discovery.yaml
+  - content-comprehension.yaml
+  - conversion-path.yaml
+  - information-architecture.yaml
+  - feature-findability.yaml
+  - enterprise-demo.yaml
+  - credibility.yaml

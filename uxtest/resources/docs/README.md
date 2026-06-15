@@ -27,12 +27,14 @@ uxtest docs
 uxtest docs list
 uxtest docs show root
 uxtest examples list
+uxtest figma doctor
 ```
 
 Use `docs show` when you need instructions in the current terminal context:
 
 ```bash
 uxtest docs show task-discovery
+uxtest docs show report-writer-agent
 uxtest docs show conversion-path-testing
 uxtest docs show information-architecture
 uxtest docs show study-types
@@ -69,11 +71,53 @@ permission before launching GUI apps:
 uxtest docs open root
 ```
 
+## Capability Map
+
+Use this map when deciding what kind of research study to run:
+
+- **First impression and orientation**: use `task-discovery` to learn what
+  visitors think a page is for, what they click first, what they misunderstand,
+  and where they hesitate.
+- **Message and content interpretation**: use `content-comprehension` to learn
+  whether visitors can explain the offer, audience, claims, jargon, proof, and
+  next step.
+- **Target-action paths**: use `conversion-path-testing` to study demo, signup,
+  pricing, checkout, contact-sales, lead form, or gated-asset paths.
+- **Findability and navigation**: use `information-architecture` to study where
+  visitors expect content such as docs, security, pricing, examples, support,
+  API references, or case studies to live.
+- **Feature or capability proof**: use `feature-findability` to learn whether
+  visitors can determine if a product supports a feature, integration,
+  workflow, API, export, permission model, or use case.
+- **Enterprise evaluation**: use `enterprise-buying-research` to study whether
+  buyers, technical evaluators, risk reviewers, and operators can find enough
+  product, proof, security, implementation, and commercial evidence to continue.
+- **Competitive or variant comparison**: use `competitive-benchmark-studies` to
+  compare the same task across competitors, variants, staging/production, or
+  before/after designs.
+- **First-run product activation**: use `onboarding-activation` to study whether
+  newly invited or signed-up users can reach a first meaningful action.
+- **Authenticated product workflows**: use `post-login-workflow-testing` for
+  role-specific logged-in tasks such as inviting users, configuring
+  integrations, exporting reports, or changing settings.
+- **Inclusive UX risk discovery**: use `accessibility-inclusive-ux` to locate
+  risks for mobile-only, low-confidence, plain-language, low-vision,
+  keyboard-oriented, or unfamiliar-domain users. This complements, but does not
+  replace, formal accessibility testing.
+- **Tracking fixes over time**: use `longitudinal-regression` to rerun known UX
+  tasks, expected flaws, and redesign hypotheses across releases.
+
+Each study guide includes an EDSL `AgentList` persona export pattern, fixture
+template, run command, `log.html` inspection workflow, narrative report shape,
+human screenshot validation guidance, and follow-on studies.
+
 ## Which Doc To Read
 
 Choose the smallest doc that matches the task:
 
 - `root`: this operational agent guide.
+- `report-writer-agent`: instructions for a research/coding agent that needs to
+  turn `uxtest` evidence into a narrative stakeholder report.
 - `task-discovery`: fully worked study guide for first-impression and first-click
   discovery studies.
 - `conversion-path-testing`: demo, signup, pricing, checkout, contact, or other
@@ -97,6 +141,14 @@ Choose the smallest doc that matches the task:
 
 Choose examples by alias:
 
+- `expectedparrot`: all Expected Parrot live-site fixtures.
+- `expectedparrot-task-discovery`: first-impression and first-click fixture.
+- `expectedparrot-content-comprehension`: homepage comprehension fixture.
+- `expectedparrot-conversion-path`: demo/contact next-step fixture.
+- `expectedparrot-information-architecture`: docs, product, company, and
+  resource findability fixture.
+- `expectedparrot-feature-findability`: EDSL/programmatic workflow evidence
+  fixture.
 - `expectedparrot-enterprise-demo`: live-site fixture for enterprise demo intent.
 - `expectedparrot-credibility`: live-site fixture for credibility and seriousness.
 - `jjh-discovery`: live-site fixture for homepage discovery.
@@ -318,6 +370,8 @@ uxtest show <study-id> <run-id> --trace --json
 uxtest trace <study-id>
 uxtest trace <study-id> --edsl-jobs
 rg -n '"outcome"|"action_recovery"|"type": "find"|"gave_up"|"max_steps"' .uxtest/studies/<study-id>
+rg -n '"action_outcome"|"no_visible_change"|"menu_opened"|"same_page_state_change"' .uxtest/studies/<study-id>
+rg -n '"stop_signal"|"stop_quality"|"enough_evidence_but_continued"|"blocked_by_auth"' .uxtest/studies/<study-id>
 ```
 
 Generate a narrative report when the user wants a stakeholder-readable summary
@@ -331,6 +385,145 @@ uxtest report <study-id> --format md,html,pdf
 
 The report command reads existing traces, screenshots, findings, and scores. It
 writes `analysis/narrative_report.md` by default and uses pandoc for HTML/PDF.
+
+When a coding or research agent is writing the final narrative itself, read the
+packaged report-writing guide first:
+
+```bash
+uxtest docs show report-writer-agent
+```
+
+That guide explains which artifacts to inspect, how to cite screenshots and
+traces, how to use `action_outcome` and `stop_quality`, and how to avoid
+overclaiming from synthetic browser-agent evidence.
+
+## Batch Research Reports
+
+Use `batch report` when several study reports need to become one cross-study
+research synthesis. This command reads existing `scores.json`, `findings.json`,
+run metadata, traces, screenshots, and logs. It deduplicates recurring findings,
+summarizes outcomes, flags trace-quality signals such as clicks with no visible
+advance, links source reports, and writes a narrative Markdown report. New
+traces classify each browser action as `url_navigation`, `hash_change`,
+`new_tab`, `menu_opened`, `same_page_state_change`, `scroll`,
+`no_visible_change`, or a related outcome so agents do not treat all
+non-navigation clicks as failures.
+
+Batch reports also classify run resolution quality. Use `stop_quality` in
+`scores.json` and the "Run Resolution" section to distinguish `done`,
+`enough_evidence_but_continued`, `looping`, `blocked_by_auth`,
+`blocked_by_no_visible_advance`, `unresolved`, and `error`. New traces include
+per-step `stop_signal` hints when the browser agent appears to have enough
+evidence to answer an exploratory task but has not stopped yet.
+
+```bash
+uxtest batch report expectedparrot-cross-study \
+  --title "Expected Parrot Cross-Study Report" \
+  --study <study-id-a> \
+  --study <study-id-b> \
+  --comparison .uxtest/comparisons/<comparison-a>.html \
+  --format md,html,pdf
+```
+
+Use `batch run` when you have a YAML manifest listing fixture files and want to
+run them before generating the synthesis:
+
+```yaml
+id: expectedparrot-cross-study
+title: Expected Parrot Cross-Study Report
+formats: [md, html, pdf]
+fixtures:
+  - examples/expectedparrot_site/task-discovery.yaml
+  - examples/expectedparrot_site/content-comprehension.yaml
+  - examples/expectedparrot_site/conversion-path.yaml
+```
+
+Run it:
+
+```bash
+uxtest batch run expectedparrot-batch.yaml
+```
+
+Batch reports are written to `.uxtest/comparisons/` by default:
+
+```text
+.uxtest/comparisons/<name>.md
+.uxtest/comparisons/<name>.html
+.uxtest/comparisons/<name>.pdf
+.uxtest/comparisons/<name>.manifest.json
+```
+
+## Figma Design Studies
+
+Use `figma` commands when the target is a Figma design or prototype rather than
+a live web page. This first integration tests static frames with vision-capable
+EDSL models; it does not yet simulate Figma prototype hotspot navigation.
+
+Set a Figma access token before importing:
+
+```bash
+export FIGMA_ACCESS_TOKEN=...
+uxtest figma doctor
+```
+
+Import a selected frame from a copied Figma selection URL:
+
+```bash
+uxtest figma import "https://www.figma.com/design/<file-key>/<name>?node-id=<node>"
+```
+
+If the URL is a whole file rather than a selected frame, import top-level frames:
+
+```bash
+uxtest figma import "https://www.figma.com/design/<file-key>/<name>" --frames top-level --limit 12
+```
+
+The command writes a local design evidence bundle:
+
+```text
+.uxtest/figma/<import-id>/manifest.json
+.uxtest/figma/<import-id>/frames/*.png
+```
+
+Generate an EDSL vision study script from an import:
+
+```bash
+uxtest figma study <import-id> \
+  --task "Can an enterprise visitor figure out what to click to schedule a demo?"
+```
+
+Or import and generate the script in one step:
+
+```bash
+uxtest figma study "https://www.figma.com/design/<file-key>/<name>?node-id=<node>" \
+  --task "What would a new visitor click first?"
+```
+
+The generated script is dry-run by default:
+
+```bash
+python .uxtest/figma/<import-id>/figma_vision_study.py
+```
+
+Run it with EDSL remote inference:
+
+```bash
+python .uxtest/figma/<import-id>/figma_vision_study.py --launch
+```
+
+Write a simple Markdown report of imported frames:
+
+```bash
+uxtest figma report <import-id>
+```
+
+Use this workflow for design-stage questions:
+
+- What does a persona think this screen is for?
+- What would they click first?
+- Which labels, CTAs, or visual hierarchy are confusing?
+- Does the frame communicate credibility or enterprise readiness?
+- How does the design intent compare to the later live site?
 
 ## Export A Human Screenshot Survey
 
@@ -433,6 +626,131 @@ Use the manifest to see exactly which run, persona, step, URL, synthetic action,
 and screenshot were exported. After collecting human responses with EDSL, an
 agent can compare human stated interpretations and intended clicks against the
 synthetic browser traces.
+
+## Generate Saliency Overlays
+
+Use `saliency run` when you want visual-attention evidence for screenshots from
+a completed study. This is useful for questions about whether CTAs, trust
+signals, forms, or navigation are likely to attract attention before the
+synthetic visitor acts.
+
+`uxtest` does not fabricate saliency maps. This command requires a real
+external saliency model command. If no command is configured, it fails.
+
+The command writes:
+
+```text
+.uxtest/studies/<study-id>/analysis/saliency/manifest.json
+.uxtest/studies/<study-id>/analysis/saliency/index.html
+.uxtest/studies/<study-id>/analysis/saliency/*-overlay.png
+.uxtest/studies/<study-id>/analysis/saliency/*-map.png
+```
+
+Use SUM by wrapping its inference command:
+
+```bash
+export UXTEST_SUM_DIR=/path/to/SUM
+uxtest saliency run <study-id> --sum \
+  --screenshots representative \
+  --max-screenshots 12
+```
+
+The `--sum` shorthand runs a command shaped like:
+
+```bash
+python $UXTEST_SUM_DIR/inference.py \
+  --img_path {input} \
+  --condition 3 \
+  --output_path {output_dir} \
+  --saliency_map_type Overlay
+```
+
+If your SUM checkout or another saliency model needs a different invocation,
+use `--engine command`:
+
+```bash
+uxtest saliency run <study-id> \
+  --engine command \
+  --command-template "python /path/to/inference.py --img_path {input} --output_path {output_dir} --condition 3 --saliency_map_type Overlay"
+```
+
+Supported placeholders are:
+
+- `{input}`: source screenshot path.
+- `{output}`: preferred overlay output path.
+- `{map}`: preferred raw saliency-map output path.
+- `{output_dir}`: per-screenshot working output directory.
+- `{scenario_id}`: stable screenshot scenario id.
+
+If the command does not write `{output}`, `uxtest` copies the newest image from
+`{output_dir}` as the overlay. The manifest records the exact command,
+return code, stdout, stderr, screenshot, overlay, persona, run, step, and
+synthetic action.
+
+## Export Rich EDSL Trace Agents
+
+Use `agents export` when you want downstream EDSL jobs or coding agents to work
+from completed browser sessions instead of re-reading raw trace JSON. The export
+creates one EDSL `Agent` per run. Each agent includes the original persona,
+study task, outcome, final URL, step-by-step journey, visible text snippets,
+actions, thinking, frustration scores, and screenshot references.
+
+```bash
+uxtest agents export <study-id>
+```
+
+The command writes:
+
+```text
+.uxtest/studies/<study-id>/analysis/agent_list.py
+.uxtest/studies/<study-id>/analysis/agent_list.manifest.json
+```
+
+Inspect the generated list without launching inference:
+
+```bash
+python .uxtest/studies/<study-id>/analysis/agent_list.py
+```
+
+Inside the generated script, call `build_agent_list()` to get an EDSL
+`AgentList`. Screenshot paths are also materialized as EDSL `FileStore` objects
+under each agent's `screenshot_files` trait, so vision-capable EDSL jobs can
+inspect the same screens the browser agent saw.
+
+Use `interview` when you want EDSL to ask follow-up questions of those rich
+trace agents:
+
+```bash
+uxtest interview <study-id> \
+  --question "What evidence made the company feel serious or not serious?" \
+  --question "What would you need before scheduling a demo?"
+```
+
+The command writes:
+
+```text
+.uxtest/studies/<study-id>/analysis/agent_interview.py
+.uxtest/studies/<study-id>/analysis/agent_interview.manifest.json
+```
+
+Dry-run first:
+
+```bash
+python .uxtest/studies/<study-id>/analysis/agent_interview.py
+```
+
+Launch remote EDSL inference only when ready:
+
+```bash
+python .uxtest/studies/<study-id>/analysis/agent_interview.py --launch
+```
+
+This pattern is useful for post-study synthesis questions such as:
+
+- What did each synthetic visitor believe after the first screen?
+- Which proof points were actually seen before conversion?
+- Which screenshots should be quoted in a narrative report?
+- Where do persona groups disagree about credibility, clarity, or risk?
 
 ## EDSL Remote Jobs
 

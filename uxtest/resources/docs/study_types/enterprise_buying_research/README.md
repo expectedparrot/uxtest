@@ -38,6 +38,89 @@ Use role-specific stakeholders rather than generic "enterprise user" personas:
 - `executive-sponsor`: wants category clarity, strategic value, and customer
   proof
 
+## Using An Existing EDSL AgentList
+
+If your organization already has a buyer-panel `AgentList`, use it as the
+source of truth. Export only the stakeholders relevant to the buying decision
+you are studying.
+
+Example:
+
+```python
+from pathlib import Path
+
+import yaml
+from edsl import Agent, AgentList
+
+
+agents = AgentList(
+    [
+        Agent(
+            name="economic-buyer",
+            traits={
+                "role": "VP of insights",
+                "budget_authority": "owns research software budget",
+                "risk_tolerance": "medium",
+                "decision_goal": "decide whether a demo is worth scheduling",
+            },
+            instruction=(
+                "Looks for business value, customer proof, category clarity, "
+                "pricing or procurement signals, and evidence that the company "
+                "is serious enough for enterprise evaluation."
+            ),
+        ),
+        Agent(
+            name="security-reviewer",
+            traits={
+                "role": "security and privacy reviewer",
+                "technical_depth": "medium",
+                "decision_goal": "identify data, compliance, and vendor risk",
+            },
+            instruction=(
+                "Looks for security, privacy, data handling, compliance, "
+                "enterprise support, and vendor-review evidence."
+            ),
+        ),
+    ]
+)
+
+
+def slug(value: str) -> str:
+    return "".join(ch if ch.isalnum() else "-" for ch in value.lower()).strip("-")
+
+
+out_dir = Path(".uxtest/personas")
+out_dir.mkdir(parents=True, exist_ok=True)
+
+for agent in agents:
+    name = slug(agent.name or agent.traits.get("role", "persona"))
+    persona = {
+        "schema_version": 1,
+        "name": name,
+        "description": agent.traits.get("role", name),
+        "attributes": dict(agent.traits),
+        "accessibility": {},
+        "goals_bias": getattr(agent, "instruction", "") or "",
+        "frustration": {"threshold": 6, "per_step_decay": 1},
+    }
+    (out_dir / f"{name}.yaml").write_text(
+        yaml.safe_dump(persona, sort_keys=False),
+        encoding="utf-8",
+    )
+```
+
+Then reference those names in the fixture:
+
+```yaml
+personas:
+  - economic-buyer
+  - security-reviewer
+```
+
+For enterprise research, keep persona instructions specific to evidence
+standards. A security reviewer and an economic buyer may both click "About,"
+but they are looking for different proof.
+
 ## Basic Fixture
 
 ```yaml
@@ -74,6 +157,41 @@ variants:
     device: iphone
 ```
 
+Save this as:
+
+```text
+examples/<site_or_product>/enterprise-buying.yaml
+```
+
+For public live sites, keep `max_concurrent_runs` at `1` or `2` unless you have
+permission to generate more traffic. Enterprise buying studies often open menus,
+docs, and support pages, so they can create more requests than a single-page
+copy scan.
+
+## How To Run
+
+From the package root:
+
+```bash
+uv run uxtest ci examples/<site_or_product>/enterprise-buying.yaml
+```
+
+The command will run each persona/device variant, capture screenshots and
+browser traces, ask EDSL for each browser decision, evaluate report-only checks,
+and generate the comparison report.
+
+Open:
+
+```text
+.uxtest/comparisons/acme-enterprise-buying.html
+```
+
+Then inspect the detailed log for each study:
+
+```text
+.uxtest/studies/<study-id>/analysis/log.html
+```
+
 ## What To Inspect
 
 Inspect:
@@ -95,6 +213,32 @@ Track findings by stakeholder concern:
 - Technical feasibility: docs, examples, API, integrations, architecture.
 - Risk readiness: privacy, security, compliance, data handling.
 - Commercial readiness: pricing, procurement path, demo/contact, support.
+
+## How To Interpret Results
+
+Read each trace as a buying investigation, not as a simple pass/fail test.
+Important moments are:
+
+1. **Category formation**
+   Did the visitor understand what kind of product or company this is?
+
+2. **Trust search**
+   What did they treat as credibility evidence: customers, team, docs,
+   examples, security, polish, activity, or social proof?
+
+3. **Evidence gap**
+   What did they explicitly look for and fail to find?
+
+4. **Next-step threshold**
+   Did they schedule a demo because they were confident, because it was the
+   only visible path, or not at all?
+
+5. **Stakeholder divergence**
+   Did buyers, technical evaluators, and risk reviewers need different content
+   routes?
+
+The strongest finding is often a mismatch: one stakeholder finds enough proof
+while another cannot find the evidence needed to move the deal forward.
 
 ## Optional Checks
 
@@ -135,3 +279,59 @@ reasoning are usually the most valuable output.
 7. Conclusions: buyer-readiness implications.
 8. Follow-on steps: content, IA, trust, demo path, and targeted stakeholder
    studies.
+
+## Example Narrative Summary
+
+Use a style like this:
+
+```text
+This enterprise buying study tested whether first-time enterprise stakeholders
+could learn enough from the site to justify scheduling a demo. The economic
+buyer understood the product category and found a visible demo path, but the
+security reviewer and technical evaluator needed stronger proof before
+recommending next steps. The main gap was not the presence of a CTA; it was the
+lack of findable enterprise evidence near the decision path. The next design
+step is to connect demo-oriented pages with security, documentation, customer
+proof, and implementation examples so different buying roles can build
+confidence without leaving the flow.
+```
+
+## Optional Human Screenshot Validation
+
+After a synthetic enterprise study, export screenshots to an EDSL human survey
+when you want real respondents to judge credibility or next-step confidence:
+
+```bash
+uv run uxtest humanize-export <study-id> \
+  --template credibility \
+  --screenshots representative \
+  --max-screenshots 8
+```
+
+Review the generated script before launching:
+
+```bash
+uv run python .uxtest/studies/<study-id>/analysis/humanize_survey.py
+uv run python .uxtest/studies/<study-id>/analysis/humanize_survey.py --launch
+```
+
+Use human validation for questions such as:
+
+- Does this page look credible enough for a first enterprise conversation?
+- What proof is missing before you would share this internally?
+- Which next step would you take from this screenshot?
+
+The generated script uses EDSL `humanize_schema` and survey-level
+`custom_css`, so screenshot size and layout can be adjusted before launch.
+
+## Follow-On Studies
+
+Enterprise buying research usually leads to:
+
+- Content comprehension: can stakeholders explain the offer and value?
+- Information architecture: can they find security, docs, pricing, and support?
+- Conversion path testing: can qualified visitors reach the right demo/contact
+  route?
+- Competitive benchmarking: do competitors provide stronger enterprise proof?
+- Figma design study: do proposed trust or enterprise pages solve the evidence
+  gap before implementation?

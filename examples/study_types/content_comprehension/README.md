@@ -35,6 +35,90 @@ Choose personas with different domain familiarity:
 - `technical-reader`: checks whether technical claims are concrete
 - `low-confidence-reader`: reads carefully and hesitates on ambiguity
 
+## Using An Existing EDSL AgentList
+
+If you already have an EDSL `AgentList` for your audience, use it to create
+reader personas. For comprehension work, the important traits are domain
+knowledge, decision context, vocabulary familiarity, and skepticism toward
+claims.
+
+Example:
+
+```python
+from pathlib import Path
+
+import yaml
+from edsl import Agent, AgentList
+
+
+agents = AgentList(
+    [
+        Agent(
+            name="domain-expert",
+            traits={
+                "role": "experienced category buyer",
+                "domain_familiarity": "high",
+                "reading_goal": "separate concrete claims from vague claims",
+                "skepticism": "high",
+            },
+            instruction=(
+                "Reads quickly, recognizes category jargon, and notices when "
+                "claims lack examples, mechanism, or proof."
+            ),
+        ),
+        Agent(
+            name="newcomer",
+            traits={
+                "role": "first-time visitor",
+                "domain_familiarity": "low",
+                "reading_goal": "understand what the page is for",
+                "skepticism": "medium",
+            },
+            instruction=(
+                "Gets confused by unexplained terms and needs concrete examples "
+                "before deciding what the product does."
+            ),
+        ),
+    ]
+)
+
+
+def slug(value: str) -> str:
+    return "".join(ch if ch.isalnum() else "-" for ch in value.lower()).strip("-")
+
+
+out_dir = Path(".uxtest/personas")
+out_dir.mkdir(parents=True, exist_ok=True)
+
+for agent in agents:
+    name = slug(agent.name or agent.traits.get("role", "persona"))
+    persona = {
+        "schema_version": 1,
+        "name": name,
+        "description": agent.traits.get("role", name),
+        "attributes": dict(agent.traits),
+        "accessibility": {},
+        "goals_bias": getattr(agent, "instruction", "") or "",
+        "frustration": {"threshold": 5, "per_step_decay": 1},
+    }
+    (out_dir / f"{name}.yaml").write_text(
+        yaml.safe_dump(persona, sort_keys=False),
+        encoding="utf-8",
+    )
+```
+
+Then reference those personas in the study fixture:
+
+```yaml
+personas:
+  - domain-expert
+  - newcomer
+```
+
+For content comprehension, avoid personas that are only demographic labels.
+What matters is what vocabulary they know, what they are trying to decide, and
+what kind of evidence they consider explanatory.
+
 ## Basic Fixture
 
 ```yaml
@@ -71,6 +155,35 @@ variants:
     device: iphone
 ```
 
+Save this as:
+
+```text
+examples/<site_or_product>/content-comprehension.yaml
+```
+
+## How To Run
+
+From the package root:
+
+```bash
+uv run uxtest ci examples/<site_or_product>/content-comprehension.yaml
+```
+
+This will run the reading/scanning task, capture screenshots and visible text,
+ask EDSL for each browsing decision, and generate the comparison report.
+
+Open:
+
+```text
+.uxtest/comparisons/acme-content-comprehension.html
+```
+
+Then inspect the detailed logs:
+
+```text
+.uxtest/studies/<study-id>/analysis/log.html
+```
+
 ## What To Inspect
 
 Look for:
@@ -82,6 +195,37 @@ Look for:
 - whether scrolling improves comprehension
 - whether mobile changes the reading order
 - next step the visitor chooses after understanding the content
+
+## How To Interpret Results
+
+Content comprehension is about mental model formation. Do not reduce it to
+whether the agent reached a URL.
+
+Read traces for:
+
+1. **First summary**
+   What did the visitor think the page was about before scrolling?
+
+2. **Audience inference**
+   Who did they think the page was written for?
+
+3. **Value reconstruction**
+   Can they explain the practical benefit in their own words?
+
+4. **Claim quality**
+   Which statements were treated as concrete, vague, unsupported, or
+   unbelievable?
+
+5. **Vocabulary failure**
+   Which product names, acronyms, abstractions, or category terms needed more
+   explanation?
+
+6. **Reading-order effect**
+   Did later sections repair confusion from the first screen, and did mobile
+   change when that repair happened?
+
+Strong findings usually quote the visitor's interpretation, then compare it to
+the intended message. The gap between those two is the product/design issue.
 
 ## Optional Checks
 
@@ -120,3 +264,61 @@ Do not overfit wording. The model may paraphrase valid understanding.
 6. Device differences: above-the-fold and mobile reading order.
 7. Conclusions: copy and content hierarchy implications.
 8. Follow-on steps: rewrite tests, task discovery, or conversion path testing.
+
+## Example Narrative Summary
+
+Use a style like this:
+
+```text
+This content comprehension study tested whether first-time readers could explain
+the page's offer, audience, and next step after scanning it. The domain expert
+understood the broad category but wanted more concrete examples before trusting
+the claims. The newcomer repeated several high-level phrases from the page but
+could not explain the workflow in practical terms. The main issue is that the
+page communicates ambition before mechanism: visitors hear that the product is
+powerful, but they do not yet know what they would do with it on day one. The
+next step is to add a plain-language workflow example near the top and test
+whether visitors can repeat it back accurately.
+```
+
+## Optional Human Screenshot Validation
+
+Use EDSL human validation when you want real readers to interpret the same
+screenshots:
+
+```bash
+uv run uxtest humanize-export <study-id> \
+  --template content-comprehension \
+  --screenshots representative \
+  --max-screenshots 8
+```
+
+Review the generated script first:
+
+```bash
+uv run python .uxtest/studies/<study-id>/analysis/humanize_survey.py
+uv run python .uxtest/studies/<study-id>/analysis/humanize_survey.py --launch
+```
+
+Useful human questions include:
+
+- What do you think this page is for?
+- Who do you think this is for?
+- Which phrase is least clear?
+- What would you click or read next?
+
+The generated survey uses EDSL `humanize_schema` and `custom_css`, so screenshot
+dimensions and button-style question presentation can be adjusted before launch.
+
+## Follow-On Studies
+
+Content comprehension usually leads to:
+
+- Task discovery: do clearer messages change first-click behavior?
+- Conversion path testing: can readers act after they understand the page?
+- Enterprise buying research: do stakeholders find enough proof after the
+  message is clear?
+- Competitive benchmarking: do competitors explain the same concept more
+  concretely?
+- Longitudinal regression: did a rewrite improve comprehension without hurting
+  findability?

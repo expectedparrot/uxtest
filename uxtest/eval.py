@@ -167,7 +167,7 @@ def _event_rule_ids(event: dict[str, Any], next_event: dict[str, Any] | None) ->
     navigated_to_login = "/login" in final_url and "/login" not in started_url
     if navigated_to_login and "login" not in action_text and "sign up" not in action_text:
         ids.append("login_detour")
-    if any(word in action_text for word in ("docs", "pricing")) and result.get("ok") is True and result.get("navigation") is False:
+    if any(word in action_text for word in ("docs", "pricing")) and result.get("ok") is True and _no_observed_advance(result):
         ids.append("dead_docs_link")
     if any(phrase in action_text for phrase in ("get started", "continue", "open example", "view examples")):
         if navigated_to_login or result.get("ok") is False:
@@ -183,7 +183,7 @@ def _repeated_non_navigation(trace: list[dict[str, Any]]) -> list[tuple[str, dic
         action = event.get("action") or {}
         result = event.get("result") or {}
         key = (event.get("url"), action.get("type"), action.get("ref"), action.get("text"))
-        if key == last_key and result.get("ok") is True and result.get("navigation") is False:
+        if key == last_key and result.get("ok") is True and _no_observed_advance(result):
             count += 1
         else:
             count = 1
@@ -191,6 +191,13 @@ def _repeated_non_navigation(trace: list[dict[str, Any]]) -> list[tuple[str, dic
         if count >= 2:
             repeated.append(("repeated_non_navigation", event))
     return repeated
+
+
+def _no_observed_advance(result: dict[str, Any]) -> bool:
+    outcome = result.get("action_outcome")
+    if outcome:
+        return outcome == "no_visible_change"
+    return result.get("navigation") is False
 
 
 def _add_rule_evidence(found: dict[str, dict[str, Any]], rule_id: str, meta: dict[str, Any], event: dict[str, Any]) -> None:

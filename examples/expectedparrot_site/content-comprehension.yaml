@@ -1,0 +1,37 @@
+id: expectedparrot-content-comprehension
+name: Expected Parrot Content Comprehension
+mode: live-site-content-comprehension
+comparison_title: Expected Parrot Content Comprehension Study
+comparison_output: expectedparrot-content-comprehension.html
+url_template: https://www.expectedparrot.com/
+study_title: Expected Parrot Content Comprehension ({variant})
+task: >
+  Read and scan the Expected Parrot homepage as a first-time visitor. Explain
+  what you think the product or company is for, who it is for, what claims seem
+  important, what is confusing, and what you would do next. Scroll as needed,
+  but focus on understanding rather than completing a transaction.
+success_criteria: >
+  The visitor can accurately summarize Expected Parrot's purpose, audience,
+  main value proposition, confusing claims, and plausible next step.
+runs_per_persona: 1
+driver: edsl
+max_steps: 6
+max_concurrent_runs: 1
+keep_runs: 8
+analysis_driver: local
+eval_policy: report_only
+animation_delay: 250
+animation_max_width: 640
+variants:
+  - name: founder-desktop
+    device: desktop
+    personas:
+      - startup-founder
+  - name: research-director-mobile
+    device: iphone
+    personas:
+      - research-director
+  - name: academic-desktop
+    device: desktop
+    personas:
+      - academic-researcher

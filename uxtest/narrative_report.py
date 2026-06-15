@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import json
-import os
-import shutil
-import subprocess
 from pathlib import Path
 from typing import Any
 
-from .store import Store, StoreError, atomic_write_text
-from .trace import study_runs
+from .store import Store, atomic_write_text
+from .rendering import normalize_formats, rel_path, run_pandoc
+from .trace import event_screenshot_path, event_thinking, study_bundle
 
 
 def write_narrative_report(
@@ -19,14 +16,15 @@ def write_narrative_report(
     output_dir: Path | None = None,
     embed_resources: bool = True,
 ) -> list[Path]:
-    requested = _normalize_formats(formats)
+    requested = normalize_formats(formats, allowed={"md", "html", "pdf"}, default=["md"], label="report")
     study_dir = store.study_dir(study_id)
     analysis_dir = output_dir or study_dir / "analysis"
     analysis_dir.mkdir(parents=True, exist_ok=True)
 
-    study = store.load_study(study_id)
-    findings = _read_json_if_exists(study_dir / "analysis" / "findings.json")
-    scores = _read_json_if_exists(study_dir / "analysis" / "scores.json")
+    bundle = study_bundle(store, study_id)
+    study = bundle["study"]
+    findings = bundle["findings_doc"]
+    scores = bundle["scores"]
     markdown = render_narrative_markdown(store, study_id, study=study, findings=findings, scores=scores)
 
     artifacts: list[Path] = []
@@ -39,11 +37,11 @@ def write_narrative_report(
         extra_args = ["--standalone"]
         if embed_resources:
             extra_args.append("--embed-resources")
-        _run_pandoc(md_path, html_path, extra_args=extra_args)
+        run_pandoc(md_path, html_path, extra_args=extra_args, label="narrative report")
         artifacts.append(html_path)
     if "pdf" in requested:
         pdf_path = analysis_dir / "narrative_report.pdf"
-        _run_pandoc(md_path, pdf_path, extra_args=[])
+        run_pandoc(md_path, pdf_path, extra_args=[], label="narrative report")
         artifacts.append(pdf_path)
     return artifacts
 
@@ -59,7 +57,8 @@ def render_narrative_markdown(
     study = study or store.load_study(study_id)
     findings = findings or {}
     scores = scores or {}
-    runs = study_runs(store, study_id)
+    bundle = study_bundle(store, study_id)
+    runs = bundle["runs"]
     title = str(study.get("title") or study_id)
 
     lines = [
@@ -105,6 +104,8 @@ def render_narrative_markdown(
     else:
         lines.extend(["No generated findings were available. Review the journey evidence below.", ""])
 
+    lines.extend(_trust_signal_section(runs))
+
     lines.extend(["## Journey Evidence", ""])
     for run in runs:
         meta = run["meta"]
@@ -132,12 +133,14 @@ def render_narrative_markdown(
                     f"- Frustration: {_fmt(event.get('frustration'))}",
                 ]
             )
-            thinking = event.get("thinking") or ((event.get("model_decision") or {}).get("thinking"))
+            thinking = event_thinking(event)
             if thinking:
                 lines.append(f"- Thinking: {thinking}")
             if screenshot:
-                screenshot_path = run["run_dir"] / str(screenshot)
-                rel = _relative_markdown_path(screenshot_path, store.study_dir(study_id) / "analysis")
+                screenshot_path = event_screenshot_path(run, event)
+                if screenshot_path is None:
+                    continue
+                rel = rel_path(screenshot_path, store.study_dir(study_id) / "analysis")
                 lines.extend(["", f"![Step {event.get('step')} screenshot]({rel})"])
             lines.append("")
 
@@ -153,40 +156,87 @@ def render_narrative_markdown(
     )
     return "\n".join(lines)
 
-
-def _read_json_if_exists(path: Path) -> dict[str, Any]:
-    if not path.exists():
-        return {}
-    with path.open("r", encoding="utf-8") as handle:
-        data = json.load(handle)
-    return data if isinstance(data, dict) else {}
-
-
-def _normalize_formats(formats: list[str]) -> list[str]:
-    requested: list[str] = []
-    for value in formats or ["md"]:
-        for item in value.split(","):
-            normalized = item.strip().lower()
-            if normalized:
-                requested.append(normalized)
-    invalid = sorted(set(requested) - {"md", "html", "pdf"})
-    if invalid:
-        raise StoreError(f"Unknown report format(s): {', '.join(invalid)}. Use md, html, or pdf.", exit_code=2)
-    return requested or ["md"]
-
-
-def _run_pandoc(input_path: Path, output_path: Path, *, extra_args: list[str]) -> None:
-    if shutil.which("pandoc") is None:
-        raise StoreError("pandoc is required for HTML/PDF narrative reports. Install pandoc or request --format md.", exit_code=2)
-    command = ["pandoc", str(input_path), "-o", str(output_path), *extra_args]
-    result = subprocess.run(command, cwd=input_path.parent, text=True, capture_output=True, check=False)
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout).strip()
-        raise StoreError(f"pandoc failed writing {output_path.name}: {detail}", exit_code=1)
+def _trust_signal_section(runs: list[dict[str, Any]]) -> list[str]:
+    signals = _collect_trust_signals(runs)
+    lines = [
+        "## Trust And Seriousness Signals",
+        "",
+        "This section lists credibility cues the synthetic visitors actually saw or mentioned during the run. Use it to separate visible evidence from assumptions made after the fact.",
+        "",
+    ]
+    if not signals:
+        lines.extend(
+            [
+                "No explicit trust, proof, pricing, security, customer, team, case study, or demo cues were detected in the recorded text or model reasoning.",
+                "",
+            ]
+        )
+        return lines
+    for signal in signals[:12]:
+        lines.append(
+            f"- Step {signal['step']} ({signal['persona']}, {signal['run_id']}): "
+            f"{signal['category']} cue: {signal['excerpt']}"
+        )
+    lines.append("")
+    return lines
 
 
-def _relative_markdown_path(path: Path, base: Path) -> str:
-    return os.path.relpath(path.resolve(), base.resolve()).replace(os.sep, "/")
+def _collect_trust_signals(runs: list[dict[str, Any]]) -> list[dict[str, str]]:
+    keywords = {
+        "customer proof": ["customer", "customers", "case study", "case studies", "logo", "logos", "testimonial", "trusted by"],
+        "company substance": ["about", "team", "founder", "leadership", "company", "research", "publication"],
+        "commercial readiness": ["demo", "sales", "enterprise", "pricing", "dashboard", "support", "contact"],
+        "risk reduction": ["security", "privacy", "compliance", "documentation", "docs", "api", "open-source", "open source"],
+    }
+    signals: list[dict[str, str]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for run in runs:
+        meta = run["meta"]
+        persona = ((meta.get("persona_instance") or {}).get("name")) or "unknown persona"
+        run_id = str(meta.get("run_id") or run["run_dir"].name)
+        for event in run["trace"]:
+            observation = event.get("observation") if isinstance(event.get("observation"), dict) else {}
+            parts = [
+                str(observation.get("visible_text_preview") or ""),
+                str(event.get("thinking") or ""),
+                str(((event.get("model_decision") or {}).get("thinking")) or ""),
+            ]
+            text = " ".join(part for part in parts if part).strip()
+            if not text:
+                continue
+            lower_text = text.lower()
+            for category, terms in keywords.items():
+                if not any(term in lower_text for term in terms):
+                    continue
+                excerpt = _excerpt(text, terms)
+                key = (run_id, category, excerpt)
+                if key in seen:
+                    continue
+                seen.add(key)
+                signals.append(
+                    {
+                        "run_id": run_id,
+                        "persona": str(persona),
+                        "step": str(event.get("step") or "?"),
+                        "category": category,
+                        "excerpt": excerpt,
+                    }
+                )
+    return signals
+
+
+def _excerpt(text: str, terms: list[str], *, max_length: int = 180) -> str:
+    normalized = " ".join(text.split())
+    lower = normalized.lower()
+    index = min((lower.find(term) for term in terms if term in lower), default=0)
+    start = max(0, index - 70)
+    end = min(len(normalized), start + max_length)
+    excerpt = normalized[start:end].strip()
+    if start > 0:
+        excerpt = "..." + excerpt
+    if end < len(normalized):
+        excerpt = excerpt + "..."
+    return excerpt
 
 
 def _fmt(value: Any) -> str:

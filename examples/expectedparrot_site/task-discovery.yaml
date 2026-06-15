@@ -1,0 +1,37 @@
+id: expectedparrot-task-discovery
+name: Expected Parrot Task Discovery
+mode: live-site-task-discovery
+comparison_title: Expected Parrot Task Discovery Study
+comparison_output: expectedparrot-task-discovery.html
+url_template: https://www.expectedparrot.com/
+study_title: Expected Parrot Task Discovery ({variant})
+task: >
+  You are visiting Expected Parrot for the first time. Figure out what this
+  product or site is for, what you would click next, and what is confusing or
+  missing before you would take action. Stop when you can explain the site's
+  purpose, your next click, and any remaining hesitation.
+success_criteria: >
+  The visitor can explain what Expected Parrot is for, choose a plausible next
+  action, and name anything confusing or missing.
+runs_per_persona: 1
+driver: edsl
+max_steps: 6
+max_concurrent_runs: 1
+keep_runs: 8
+analysis_driver: local
+eval_policy: report_only
+animation_delay: 250
+animation_max_width: 640
+variants:
+  - name: founder-desktop
+    device: desktop
+    personas:
+      - startup-founder
+  - name: insights-lead-desktop
+    device: desktop
+    personas:
+      - enterprise-insights-lead
+  - name: developer-mobile
+    device: iphone
+    personas:
+      - developer-builder

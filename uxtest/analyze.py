@@ -10,6 +10,7 @@ from .store import Store, atomic_write_json, read_json, utc_now
 from .report import write_report
 from .log_report import write_log_report
 from .eval import RULES, detect_patterns
+from .stop_quality import classify_run_stop_quality
 from .uxr import write_uxr_artifacts
 
 AnalysisDriver = Literal["local", "edsl"]
@@ -108,7 +109,8 @@ def _build_findings(study_id: str, runs: list[dict[str, Any]]) -> dict[str, Any]
 
         if meta.get("outcome") in {"gave_up", "max_steps", "error"}:
             last = trace[-1] if trace else {}
-            title, description, category, kind = _outcome_finding(meta, trace)
+            stop_quality = classify_run_stop_quality(meta, trace)
+            title, description, category, kind = _outcome_finding(meta, trace, stop_quality=stop_quality)
             key = (category, _url_path(meta.get("final_url") or last.get("url")), kind)
             _add_evidence(
                 grouped,
@@ -131,6 +133,22 @@ def _build_findings(study_id: str, runs: list[dict[str, Any]]) -> dict[str, Any]
                     title="Browser action failed",
                     severity="medium",
                     description=str(result.get("error") or "A browser action failed."),
+                    run_id=run_id,
+                    persona=persona,
+                    event=event,
+                )
+            if (
+                (event.get("action") or {}).get("type") == "click"
+                and result.get("ok") is True
+                and result.get("action_outcome") == "no_visible_change"
+            ):
+                key = ("navigation", _url_path(event.get("url")), "click-no-visible-change")
+                _add_evidence(
+                    grouped,
+                    key,
+                    title="Click did not visibly advance the page",
+                    severity="medium",
+                    description="A click completed successfully, but the browser observed no URL change, menu/state change, new tab, scroll change, or visible content change.",
                     run_id=run_id,
                     persona=persona,
                     event=event,
@@ -245,10 +263,38 @@ def _add_evidence(
     item["evidence"].append(evidence)
 
 
-def _outcome_finding(meta: dict[str, Any], trace: list[dict[str, Any]]) -> tuple[str, str, str, str]:
+def _outcome_finding(meta: dict[str, Any], trace: list[dict[str, Any]], *, stop_quality: dict[str, Any] | None = None) -> tuple[str, str, str, str]:
     outcome = str(meta.get("outcome") or "unknown")
     if outcome == "error":
         return ("Run ended with an execution error", str(meta.get("outcome_detail") or "Run errored."), "error-handling", "run-error")
+    if (stop_quality or {}).get("class") == "enough_evidence_but_continued":
+        return (
+            "Run had enough evidence but did not stop",
+            str((stop_quality or {}).get("reason") or "The trace suggests the task could already be answered before the run ended."),
+            "research-quality",
+            "enough-evidence-but-continued",
+        )
+    if (stop_quality or {}).get("class") == "blocked_by_auth":
+        return (
+            "Learning path was blocked by authentication",
+            str((stop_quality or {}).get("reason") or "The path moved into login or sign-up before the task was completed."),
+            "navigation",
+            "blocked-by-auth",
+        )
+    if (stop_quality or {}).get("class") == "blocked_by_no_visible_advance":
+        return (
+            "Run ended on a click with no visible advance",
+            str((stop_quality or {}).get("reason") or "The final click produced no observed page, menu, tab, scroll, or URL change."),
+            "navigation",
+            "blocked-by-no-visible-advance",
+        )
+    if (stop_quality or {}).get("class") == "looping":
+        return (
+            "Run looped instead of resolving the task",
+            str((stop_quality or {}).get("reason") or "The trace repeated actions or page paths before ending."),
+            "research-quality",
+            "looping-stop-quality",
+        )
     if _mostly_static_heading_attempts(trace):
         return (
             "User looked for section navigation that was not interactive",
@@ -302,7 +348,14 @@ def _ends_in_repeated_non_navigation(trace: list[dict[str, Any]]) -> bool:
         previous_action.get("type"),
         previous_action.get("ref"),
         previous_action.get("text"),
-    ) and (latest.get("result") or {}).get("navigation") is False and (previous.get("result") or {}).get("navigation") is False
+    ) and _no_observed_advance(latest.get("result") or {}) and _no_observed_advance(previous.get("result") or {})
+
+
+def _no_observed_advance(result: dict[str, Any]) -> bool:
+    outcome = result.get("action_outcome")
+    if outcome:
+        return outcome == "no_visible_change"
+    return result.get("navigation") is False
 
 
 def _found_relevant_external_content(trace: list[dict[str, Any]]) -> bool:
@@ -330,6 +383,10 @@ def _build_scores(study_id: str, runs: list[dict[str, Any]]) -> dict[str, Any]:
         if run["meta"].get("outcome") in {"gave_up", "max_steps", "error"}
     )
     completion_rate = completed / total if total else 0
+    stop_quality = Counter(
+        classify_run_stop_quality(run["meta"], run["trace"]).get("class")
+        for run in runs
+    )
     return {
         "schema_version": 1,
         "study_id": study_id,
@@ -341,6 +398,7 @@ def _build_scores(study_id: str, runs: list[dict[str, Any]]) -> dict[str, Any]:
         "mean_frustration": mean(frustrations) if frustrations else 0,
         "max_frustration": max(frustrations) if frustrations else 0,
         "abandonment_points": dict(sorted(abandonment.items())),
+        "stop_quality": dict(sorted(stop_quality.items())),
         "synthetic_sus_score": round(50 + (completion_rate * 40) - min(20, mean(frustrations) * 2 if frustrations else 0), 1),
         "methodology": "Local deterministic summary from run meta.json and trace.jsonl; not a validated SUS instrument.",
     }
@@ -469,7 +527,8 @@ def _persona_for_run(runs: list[dict[str, Any]], run_id: str) -> str | None:
 def _pattern_description(rule_id: str) -> str:
     return {
         "login_detour": "An exploratory action led to a login/sign-up page before the persona had enough product information.",
-        "dead_docs_link": "A docs or pricing action was selected, but the browser observed no navigation.",
+        "dead_docs_link": "A docs or pricing action was selected, but the browser observed no visible page, menu, tab, scroll, or URL change.",
+        "click_no_visible_change": "A click completed successfully, but no visible page, menu, tab, scroll, or URL change was observed.",
         "generic_cta_confusion": "A generic CTA such as Get started, Continue, or Open example caused a detour or failed action.",
         "repeated_non_navigation": "The same action was repeated without a navigation or observable state advance.",
     }.get(rule_id, f"Detected trace pattern {rule_id}.")

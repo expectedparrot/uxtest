@@ -49,6 +49,89 @@ Use constraint-specific personas:
 These personas are approximations. Treat findings as risk indicators, not proof
 of accessibility compliance.
 
+## Using An Existing EDSL AgentList
+
+If you already have an EDSL `AgentList`, export personas that encode the access
+constraint, confidence level, domain familiarity, and device context being
+studied.
+
+Example:
+
+```python
+from pathlib import Path
+
+import yaml
+from edsl import Agent, AgentList
+
+
+agents = AgentList(
+    [
+        Agent(
+            name="mobile-only-user",
+            traits={
+                "access_context": "small touch device",
+                "device": "mobile",
+                "confidence": "medium",
+                "domain_familiarity": "medium",
+            },
+            instruction=(
+                "Uses mobile-first expectations, notices hidden menus, small "
+                "targets, cramped forms, and controls that require desktop "
+                "assumptions."
+            ),
+        ),
+        Agent(
+            name="plain-language-reader",
+            traits={
+                "access_context": "plain-language preference",
+                "device": "desktop",
+                "confidence": "low",
+                "domain_familiarity": "low",
+            },
+            instruction=(
+                "Needs concrete labels and simple explanations. Hesitates when "
+                "copy uses jargon, acronyms, or abstract claims."
+            ),
+        ),
+    ]
+)
+
+
+def slug(value: str) -> str:
+    return "".join(ch if ch.isalnum() else "-" for ch in value.lower()).strip("-")
+
+
+out_dir = Path(".uxtest/personas")
+out_dir.mkdir(parents=True, exist_ok=True)
+
+for agent in agents:
+    name = slug(agent.name or agent.traits.get("access_context", "persona"))
+    persona = {
+        "schema_version": 1,
+        "name": name,
+        "description": agent.traits.get("access_context", name),
+        "attributes": dict(agent.traits),
+        "accessibility": {
+            "context": agent.traits.get("access_context", ""),
+            "device": agent.traits.get("device", ""),
+        },
+        "goals_bias": getattr(agent, "instruction", "") or "",
+        "frustration": {"threshold": 5, "per_step_decay": 1},
+    }
+    (out_dir / f"{name}.yaml").write_text(
+        yaml.safe_dump(persona, sort_keys=False),
+        encoding="utf-8",
+    )
+```
+
+Then reference those personas:
+
+```yaml
+personas:
+  - mobile-only-user
+  - plain-language-reader
+```
+
 ## Basic Fixture
 
 ```yaml
@@ -84,6 +167,12 @@ variants:
     device: desktop
 ```
 
+Save this as:
+
+```text
+examples/<site_or_product>/accessibility-inclusive-ux.yaml
+```
+
 ## Device And Viewport Variants
 
 Use built-in devices first:
@@ -105,6 +194,26 @@ runs:
 uxtest study run <study-id> --viewport 360x640 --mobile --touch --driver edsl
 ```
 
+## How To Run
+
+From the package root:
+
+```bash
+uv run uxtest ci examples/<site_or_product>/accessibility-inclusive-ux.yaml
+```
+
+Open:
+
+```text
+.uxtest/comparisons/acme-inclusive-demo-path.html
+```
+
+Then inspect:
+
+```text
+.uxtest/studies/<study-id>/analysis/log.html
+```
+
 ## What To Inspect
 
 Inspect:
@@ -116,6 +225,34 @@ Inspect:
 - error messages and recovery paths
 - repeated taps/clicks or failed actions
 - whether completion state is visible and understandable
+
+## How To Interpret Results
+
+Treat this study as a way to locate inclusive UX risks. It can show where
+constrained visitors hesitate, but it does not certify accessibility.
+
+Read traces for:
+
+1. **Visibility**
+   Did the important control appear in the screenshot before the user needed
+   it?
+
+2. **Plain-language clarity**
+   Did labels explain action and outcome without requiring domain knowledge?
+
+3. **Interaction precision**
+   Did the flow depend on small targets, dense menus, or ambiguous card clicks?
+
+4. **Error recovery**
+   Did forms and errors explain what happened and how to fix it?
+
+5. **State recognition**
+   Did the visitor understand success, failure, disabled controls, or loading
+   states?
+
+6. **Escalation**
+   Which issues should be validated with automated accessibility tooling,
+   keyboard-only manual testing, screen readers, or human participants?
 
 ## Common Findings
 
@@ -144,3 +281,57 @@ Inspect:
 does not replace automated accessibility tooling, screen readers, keyboard-only
 manual tests, or participants with lived access needs. Use it to prioritize what
 to inspect and where inclusive UX may break down.
+
+## Example Narrative Summary
+
+Use a style like this:
+
+```text
+This inclusive UX study tested whether constrained visitors could find the demo
+path. Mobile-only users eventually found the menu, but the target action was
+below several visually similar links and required extra scanning. The
+plain-language reader understood "contact" but hesitated on product-specific
+labels that did not explain outcome. These findings do not prove an
+accessibility violation, but they identify risk areas: mobile nav hierarchy,
+plain-language CTA wording, and form recovery. The next step is to validate the
+same flow with automated accessibility checks and human participants using the
+relevant access technologies.
+```
+
+## Optional Human Screenshot Validation
+
+Use EDSL human validation when you want real respondents to judge clarity or
+first-click behavior from screenshots:
+
+```bash
+uv run uxtest humanize-export <study-id> \
+  --template accessibility-inclusive-ux \
+  --screenshots representative \
+  --max-screenshots 8
+```
+
+Review and launch the generated survey:
+
+```bash
+uv run python .uxtest/studies/<study-id>/analysis/humanize_survey.py
+uv run python .uxtest/studies/<study-id>/analysis/humanize_survey.py --launch
+```
+
+Useful human questions include:
+
+- What would you click first?
+- Which label is clearest?
+- What would make this form easier to complete?
+
+The generated survey uses EDSL `humanize_schema` and `custom_css`, so screenshot
+size and answer layout can be edited before launch.
+
+## Follow-On Studies
+
+Inclusive UX studies usually lead to:
+
+- Formal accessibility audit: WCAG checks, keyboard testing, and screen-reader
+  testing.
+- Content comprehension: can plain-language readers understand the page?
+- Conversion path testing: do layout and labels affect completion?
+- Post-login workflow testing: do forms and errors work under constraints?

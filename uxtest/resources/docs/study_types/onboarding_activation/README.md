@@ -35,6 +35,84 @@ Use personas based on product role and first-run intent:
 - `technical-setup-user`: expects API keys, imports, or integrations
 - `low-confidence-new-user`: needs plain instructions and avoids risky choices
 
+## Using An Existing EDSL AgentList
+
+If you already have an EDSL `AgentList`, export first-run personas based on
+role, setup goal, confidence, and tolerance for blank-state ambiguity.
+
+Example:
+
+```python
+from pathlib import Path
+
+import yaml
+from edsl import Agent, AgentList
+
+
+agents = AgentList(
+    [
+        Agent(
+            name="new-admin",
+            traits={
+                "role": "new workspace admin",
+                "first_run_goal": "set up the workspace for a team",
+                "setup_bias": "users, permissions, integrations",
+                "confidence": "medium",
+            },
+            instruction=(
+                "Looks for workspace setup, team invites, permissions, "
+                "integrations, and clear confirmation that setup worked."
+            ),
+        ),
+        Agent(
+            name="template-seeker",
+            traits={
+                "role": "new individual user",
+                "first_run_goal": "start from a useful template",
+                "setup_bias": "templates, examples, guided workflow",
+                "confidence": "low",
+            },
+            instruction=(
+                "Avoids blank-canvas choices and looks for templates, examples, "
+                "checklists, or guided first actions."
+            ),
+        ),
+    ]
+)
+
+
+def slug(value: str) -> str:
+    return "".join(ch if ch.isalnum() else "-" for ch in value.lower()).strip("-")
+
+
+out_dir = Path(".uxtest/personas")
+out_dir.mkdir(parents=True, exist_ok=True)
+
+for agent in agents:
+    name = slug(agent.name or agent.traits.get("role", "persona"))
+    persona = {
+        "schema_version": 1,
+        "name": name,
+        "description": agent.traits.get("role", name),
+        "attributes": dict(agent.traits),
+        "accessibility": {},
+        "goals_bias": getattr(agent, "instruction", "") or "",
+        "frustration": {"threshold": 6, "per_step_decay": 1},
+    }
+    (out_dir / f"{name}.yaml").write_text(
+        yaml.safe_dump(persona, sort_keys=False),
+        encoding="utf-8",
+    )
+```
+
+Then reference those personas:
+
+```yaml
+personas:
+  - new-admin
+  - template-seeker
+```
+
 ## Basic Fixture
 
 ```yaml
@@ -67,6 +145,12 @@ eval_policy: report_only
 variants:
   - name: desktop
     device: desktop
+```
+
+Save this as:
+
+```text
+examples/<site_or_product>/onboarding-activation.yaml
 ```
 
 ## Auth And Setup
@@ -105,6 +189,30 @@ auth_state:
 Use fresh or reset test accounts when possible. Reusing a fully activated
 account can hide onboarding problems.
 
+## How To Run
+
+From the package root:
+
+```bash
+uv run uxtest ci examples/<site_or_product>/onboarding-activation.yaml
+```
+
+Open:
+
+```text
+.uxtest/comparisons/acme-onboarding.html
+```
+
+Then inspect:
+
+```text
+.uxtest/studies/<study-id>/analysis/log.html
+```
+
+Authenticated onboarding studies should run against staging, disposable
+accounts, or safe seeded accounts. Do not let a study mutate production data
+unless the fixture is explicitly designed for that.
+
 ## What To Inspect
 
 Inspect:
@@ -116,6 +224,33 @@ Inspect:
 - integration or permission blockers
 - whether success requires prior domain knowledge
 - loops between dashboard, settings, and help
+
+## How To Interpret Results
+
+Onboarding activation is about whether the user reaches a first meaningful
+action, not merely whether they click through welcome screens.
+
+Read traces for:
+
+1. **Initial product model**
+   Did the user understand what the product expected from them first?
+
+2. **Path selection**
+   Did they choose checklist, template, blank project, import, invite, or
+   settings, and did that match their role?
+
+3. **Blank-state clarity**
+   Did empty states explain action, value, and completion?
+
+4. **Prompt timing**
+   Did integrations, permissions, or data-import prompts appear before the user
+   had enough context?
+
+5. **Activation evidence**
+   Did the product show that the first action worked?
+
+6. **Role mismatch**
+   Did admin and end-user setup routes compete or confuse each other?
 
 ## Common Findings
 
@@ -137,3 +272,56 @@ Inspect:
 6. Conclusions: onboarding changes that would increase activation.
 7. Follow-on steps: test-account fixtures, checklist changes, template labels,
    and longitudinal regression.
+
+## Example Narrative Summary
+
+Use a style like this:
+
+```text
+This onboarding activation study tested whether newly invited users could reach
+a meaningful first product action from a clean account. The new admin found team
+setup options quickly but hesitated because workspace setup, integration setup,
+and project creation appeared equally urgent. The template-seeker understood
+the product value but avoided the blank project path and looked for examples
+that were not visible above the fold. The main onboarding issue is priority:
+the product offers several plausible starts but does not make the right first
+action role-specific. The next step is to split admin setup from individual
+activation and add stronger completion feedback after the first action.
+```
+
+## Optional Human Screenshot Validation
+
+Use EDSL human validation when you want real respondents to judge first-run
+clarity from screenshots:
+
+```bash
+uv run uxtest humanize-export <study-id> \
+  --template onboarding-activation \
+  --screenshots representative \
+  --max-screenshots 8
+```
+
+Review and launch the generated survey:
+
+```bash
+uv run python .uxtest/studies/<study-id>/analysis/humanize_survey.py
+uv run python .uxtest/studies/<study-id>/analysis/humanize_survey.py --launch
+```
+
+Useful human questions include:
+
+- What would you do first on this screen?
+- Which setup option best matches your goal?
+- How would you know that setup worked?
+
+The generated survey uses EDSL `humanize_schema` and `custom_css`, so screenshot
+size and answer layout can be edited before launch.
+
+## Follow-On Studies
+
+Onboarding activation usually leads to:
+
+- Post-login workflow testing: can activated users complete role-specific work?
+- Information architecture: can users find setup, templates, settings, or help?
+- Content comprehension: do empty states explain value and action?
+- Longitudinal regression: did onboarding changes improve activation over time?

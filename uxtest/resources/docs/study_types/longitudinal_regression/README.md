@@ -39,6 +39,85 @@ Use the smallest set that covers the risk:
 - one technical or admin persona if the workflow requires it
 - one mobile variant when mobile is important
 
+## Using An Existing EDSL AgentList
+
+If you already have an EDSL `AgentList`, export a stable subset and version the
+reason for any future changes. Longitudinal results are only interpretable when
+persona goals and evidence standards stay comparable.
+
+Example:
+
+```python
+from pathlib import Path
+
+import yaml
+from edsl import Agent, AgentList
+
+
+agents = AgentList(
+    [
+        Agent(
+            name="enterprise-buyer-regression",
+            traits={
+                "role": "enterprise buyer",
+                "tracking_goal": "demo path regression",
+                "known_risk": "login or docs mistaken for demo path",
+                "evidence_standard": "clear route plus enough confidence",
+            },
+            instruction=(
+                "Use the same demo-evaluation standard on every run. Notice "
+                "whether known flaws recur, disappear, or change form."
+            ),
+        ),
+        Agent(
+            name="low-confidence-regression",
+            traits={
+                "role": "low-confidence evaluator",
+                "tracking_goal": "CTA and label clarity",
+                "known_risk": "ambiguous Get Started or Contact labels",
+                "evidence_standard": "plain labels and low hesitation",
+            },
+            instruction=(
+                "Reads labels carefully and hesitates when the next step is "
+                "ambiguous. Use the same caution on every run."
+            ),
+        ),
+    ]
+)
+
+
+def slug(value: str) -> str:
+    return "".join(ch if ch.isalnum() else "-" for ch in value.lower()).strip("-")
+
+
+out_dir = Path(".uxtest/personas")
+out_dir.mkdir(parents=True, exist_ok=True)
+
+for agent in agents:
+    name = slug(agent.name or agent.traits.get("role", "persona"))
+    persona = {
+        "schema_version": 1,
+        "name": name,
+        "description": agent.traits.get("role", name),
+        "attributes": dict(agent.traits),
+        "accessibility": {},
+        "goals_bias": getattr(agent, "instruction", "") or "",
+        "frustration": {"threshold": 6, "per_step_decay": 1},
+    }
+    (out_dir / f"{name}.yaml").write_text(
+        yaml.safe_dump(persona, sort_keys=False),
+        encoding="utf-8",
+    )
+```
+
+Then reference the stable persona names:
+
+```yaml
+personas:
+  - enterprise-buyer-regression
+  - low-confidence-regression
+```
+
 ## Basic Fixture Pattern
 
 ```yaml
@@ -72,6 +151,12 @@ variants:
     device: iphone
 ```
 
+Save this as:
+
+```text
+examples/<site_or_product>/longitudinal-regression.yaml
+```
+
 ## Expected Flaws
 
 Use an expected-flaw file to track whether known problems appear again.
@@ -100,6 +185,29 @@ flaws:
 Use flaws to guide review, not to replace human interpretation. A known flaw can
 reappear in a new form.
 
+## How To Run
+
+From the package root:
+
+```bash
+uv run uxtest ci examples/<site_or_product>/longitudinal-regression.yaml
+```
+
+Open:
+
+```text
+.uxtest/comparisons/acme-demo-path-regression.html
+```
+
+Then inspect:
+
+```text
+.uxtest/studies/<study-id>/analysis/log.html
+```
+
+Keep fixture IDs stable for the same recurring study. Use new IDs only when the
+research question changes enough that old and new runs should not be compared.
+
 ## What To Inspect
 
 Inspect:
@@ -110,6 +218,35 @@ Inspect:
 - whether improvements reduce steps or frustration
 - new loops or detours introduced by the change
 - screenshots of before/after evidence
+
+## How To Interpret Results
+
+Longitudinal regression translates research findings into a repeatable evidence
+loop. It should answer what changed, not just whether a check passed.
+
+Read across runs for:
+
+1. **Known flaw status**
+   Did the flaw recur, reduce, resolve, or appear under a new label?
+
+2. **Behavioral change**
+   Did first clicks, detours, hesitation, or confidence change?
+
+3. **Persona stability**
+   Did the improvement help all tracked personas or only the target persona?
+
+4. **Device stability**
+   Did desktop improve while mobile stayed broken, or vice versa?
+
+5. **New risk**
+   Did the fix create a different confusion, trust gap, or routing problem?
+
+6. **Check maturity**
+   Which qualitative finding is now stable enough to become a stricter eval
+   check?
+
+Separate runtime failures from UX regressions. Use screenshots and `log.html`
+before interpreting a failed run as a product issue.
 
 ## Running Over Time
 
@@ -145,3 +282,58 @@ variants:
 5. Known flaw status: recovered, reduced, resolved, or changed form.
 6. New risks: regressions or unintended side effects.
 7. Follow-on steps: fixes, stricter eval checks, and future run cadence.
+
+## Example Narrative Summary
+
+Use a style like this:
+
+```text
+This longitudinal regression study reran the demo-path task after the navigation
+and CTA changes. The original flaw, where buyers mistook login for the demo
+path, did not recur on desktop. Mobile improved less: the buyer still opened
+the collapsed menu twice before finding the right route. The redesign shortened
+the path, but it also moved customer proof farther from the CTA, which reduced
+confidence for the low-confidence persona. The next step is to preserve the
+clearer demo label while restoring nearby proof, then promote the login
+confusion pattern from expected flaw to a stricter regression check.
+```
+
+## Optional Human Screenshot Validation
+
+Use EDSL human validation when you want real respondents to compare before/after
+screenshots or confirm that a known issue is fixed:
+
+```bash
+uv run uxtest humanize-export <study-id> \
+  --template longitudinal-regression \
+  --screenshots representative \
+  --max-screenshots 8
+```
+
+Review and launch:
+
+```bash
+uv run python .uxtest/studies/<study-id>/analysis/humanize_survey.py
+uv run python .uxtest/studies/<study-id>/analysis/humanize_survey.py --launch
+```
+
+Useful human questions include:
+
+- Which version makes the next step clearer?
+- Does the known issue still appear in this screenshot?
+- What new confusion, if any, did the change introduce?
+
+The generated survey uses EDSL `humanize_schema` and `custom_css`, so screenshot
+size and answer layout can be edited before launch.
+
+## Follow-On Studies
+
+Longitudinal regression usually leads to:
+
+- Stricter eval checks for stable, well-understood issues.
+- New task discovery or content comprehension when a redesign changes the page
+  purpose.
+- Conversion path testing when a recurring study exposes a specific target-path
+  problem.
+- Human validation when the regression affects high-stakes product or brand
+  decisions.
