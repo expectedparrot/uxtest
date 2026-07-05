@@ -73,14 +73,18 @@ def atomic_write_text(path: Path, text: str) -> None:
         handle.flush()
         os.fsync(handle.fileno())
     os.replace(tmp, path)
-    try:
-        dir_fd = os.open(str(path.parent), os.O_DIRECTORY)
+    # Directory fsync is a POSIX-only durability step; O_DIRECTORY is absent on
+    # Windows, so skip it there rather than raising AttributeError.
+    o_directory = getattr(os, "O_DIRECTORY", None)
+    if o_directory is not None:
         try:
-            os.fsync(dir_fd)
-        finally:
-            os.close(dir_fd)
-    except OSError:
-        pass
+            dir_fd = os.open(str(path.parent), o_directory)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
+        except OSError:
+            pass
 
 
 def atomic_write_json(path: Path, data: dict[str, Any]) -> None:

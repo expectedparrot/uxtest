@@ -7,7 +7,7 @@ name = "uxtest"
 version = "0.1.0"
 description = "Synthetic-user UX studies against live web applications"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.13"
 dependencies = [
   "edsl",
   "pillow>=10",
