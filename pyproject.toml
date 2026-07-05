@@ -9,7 +9,7 @@ description = "Synthetic-user UX studies against live web applications"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 dependencies = [
-  "edsl",
+  "edsl @ git+https://github.com/expectedparrot/edsl.git@68e7a444596248958851cc335a599a1c3cb8987f",
   "pillow>=10",
   "playwright>=1.40",
   "pyyaml>=6.0",

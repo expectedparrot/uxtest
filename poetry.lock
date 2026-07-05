@@ -171,6 +171,18 @@ frozenlist = ">=1.1.0"
 typing-extensions = {version = ">=4.2", markers = "python_version < \"3.13\""}
 
 [[package]]
+name = "annotated-doc"
+version = "0.0.4"
+description = "Document parameters, class attributes, return types, and variables inline, with Annotated."
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "annotated_doc-0.0.4-py3-none-any.whl", hash = "sha256:571ac1dc6991c450b25a9c2d84a3705e2ae7a53467b5d111c24fa8baabbed320"},
+    {file = "annotated_doc-0.0.4.tar.gz", hash = "sha256:fbcda96e87e9c92ad167c2e53839e57503ecfda18804ea28102353485033faa4"},
+]
+
+[[package]]
 name = "annotated-types"
 version = "0.7.0"
 description = "Reusable constraint types to use with typing.Annotated"
@@ -365,27 +377,13 @@ files = [
 ]
 
 [[package]]
-name = "click"
-version = "8.4.2"
-description = "Composable command line interface toolkit"
-optional = false
-python-versions = ">=3.10"
-groups = ["main"]
-files = [
-    {file = "click-8.4.2-py3-none-any.whl", hash = "sha256:e6f9f66136c816745b9d65817da91d61d957fb16e02e4dcd0552553c5a197b76"},
-    {file = "click-8.4.2.tar.gz", hash = "sha256:9a6cea6e60b17ebe0a44c5cc636d94f09bd66142c1cd7d8b4cd731c4917a15f6"},
-]
-
-[package.dependencies]
-colorama = {version = "*", markers = "platform_system == \"Windows\""}
-
-[[package]]
 name = "colorama"
 version = "0.4.6"
 description = "Cross-platform colored terminal text."
 optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,>=2.7"
 groups = ["main"]
+markers = "extra == \"dev\" and sys_platform == \"win32\" or platform_system == \"Windows\""
 files = [
     {file = "colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"},
     {file = "colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44"},
@@ -393,45 +391,49 @@ files = [
 
 [[package]]
 name = "edsl"
-version = "1.0.8"
+version = "1.0.8.dev1"
 description = "Create and analyze LLM-based surveys"
 optional = false
-python-versions = "<3.14,>=3.10"
+python-versions = ">=3.10,<3.14"
 groups = ["main"]
-files = [
-    {file = "edsl-1.0.8-py3-none-any.whl", hash = "sha256:be45dd4a301738000a8afbf97913514392880b2d35a8a55438a4120f243aa2ae"},
-    {file = "edsl-1.0.8.tar.gz", hash = "sha256:04067dca8f74512e429663a898e54b3f4ee274d9037231a47d0b3bdf3d26357d"},
-]
+files = []
+develop = false
 
 [package.dependencies]
-aiohttp = ">=3.9.1,<4.0.0"
+aiohttp = "^3.9.1"
 httpx = ">=0.24.0"
-jinja2 = ">=3.1.2,<4.0.0"
-json-repair = ">=0.28.4,<0.29.0"
-nest-asyncio = ">=1.5.9,<2.0.0"
-platformdirs = ">=4.3.6,<5.0.0"
-pydantic = ">=2.0,<3.0"
-python-dotenv = ">=1.0.0,<2.0.0"
-pyyaml = ">=6.0,<7.0"
-requests = ">=2.32.0,<3.0.0"
-restrictedpython = ">=7.0,<8.0"
-rich = ">=13.7.0,<14.0.0"
-simpleeval = ">=0.9.13,<0.10.0"
-tenacity = ">=8.2.3,<9.0.0"
-typer = {version = ">=0.9.0,<0.10.0", extras = ["all"]}
+jinja2 = "^3.1.2"
+json-repair = "^0.28.4"
+nest-asyncio = "^1.5.9"
+platformdirs = "^4.3.6"
+pydantic = "^2.0"
+python-dotenv = "^1.0.0"
+pyyaml = "^6.0"
+requests = "^2.32.0"
+restrictedpython = "^7.0"
+rich = "^13.7.0"
+simpleeval = "^0.9.13"
+tenacity = "^8.2.3"
+typer = {version = ">=0.12,<1", extras = ["all"]}
 
 [package.extras]
 agent-building = ["seaborn (>=0.13.2,<0.14.0)", "sentence-transformers (>=2.2.2,<3.0.0)"]
 file-formats = ["openpyxl (>=3.1.5,<4.0.0)", "pandas (>=2.1.4,<4)", "pypdf2 (>=3.0.1,<4.0.0)", "python-docx (>=1.1.0,<2.0.0)", "python-pptx (>=1.0.2,<2.0.0)"]
-full = ["altair (>=5.0.0,<6.0.0)", "anthropic (>=0.80.0,<0.81.0)", "azure-ai-inference (>=1.0.0b3,<2.0.0)", "black (>=24.4.2,<25.0.0)", "boto3 (>=1.34.161,<2.0.0)", "fastapi (>=0.112.1,<0.113.0)", "google-genai (>=1.30.0,<2.0.0)", "groq (==0.23.1)", "mistralai (>=1.0.2,<2.0.0)", "nbclient (>=0.10.0,<0.11.0)", "nbformat (>=5.0.0,<6.0.0)", "openai[aiohttp] (>=1.4.0,<2.0.0)", "openpyxl (>=3.1.5,<4.0.0)", "pandas (>=2.1.4,<4)", "playwright (>=1.40.0,<2.0.0)", "psutil (>=6.1.0,<7.0.0)", "pydot (>=2.0.0,<3.0.0)", "pypdf2 (>=3.0.1,<4.0.0)", "python-docx (>=1.1.0,<2.0.0)", "python-pptx (>=1.0.2,<2.0.0)", "qrcode[pil] (>=8.0,<9.0)", "seaborn (>=0.13.2,<0.14.0)", "sentence-transformers (>=2.2.2,<3.0.0)", "sqlalchemy (>=2.0.23,<3.0.0)", "termplotlib (>=0.3.9,<0.4.0)", "uvicorn (>=0.30.6,<0.31.0)"]
+full = ["altair (>=5.0.0,<6.0.0)", "anthropic (>=0.80.0,<0.81.0)", "azure-ai-inference (>=1.0.0b3,<2.0.0)", "black (>=24.4.2,<25.0.0)", "boto3 (>=1.34.161,<2.0.0)", "fastapi (>=0.112.1,<0.113.0)", "google-genai (>=1.30.0,<2.0.0)", "groq (==0.23.1)", "mistralai (>=1.0.2,<2.0.0)", "nbclient (>=0.10.0,<0.11.0)", "nbformat (>=5.0.0,<6.0.0)", "openai[aiohttp] (>=2.44.0,<3.0.0)", "openpyxl (>=3.1.5,<4.0.0)", "pandas (>=2.1.4,<4)", "playwright (>=1.40.0,<2.0.0)", "psutil (>=6.1.0,<7.0.0)", "pydot (>=2.0.0,<3.0.0)", "pypdf2 (>=3.0.1,<4.0.0)", "python-docx (>=1.1.0,<2.0.0)", "python-pptx (>=1.0.2,<2.0.0)", "qrcode[pil] (>=8.0,<9.0)", "seaborn (>=0.13.2,<0.14.0)", "sentence-transformers (>=2.2.2,<3.0.0)", "sqlalchemy (>=2.0.23,<3.0.0)", "termplotlib (>=0.3.9,<0.4.0)", "uvicorn (>=0.30.6,<0.31.0)"]
 gcp = ["google-cloud-storage (>=2.14.0)"]
-inference = ["anthropic (>=0.80.0,<0.81.0)", "azure-ai-inference (>=1.0.0b3,<2.0.0)", "boto3 (>=1.34.161,<2.0.0)", "google-genai (>=1.30.0,<2.0.0)", "groq (==0.23.1)", "mistralai (>=1.0.2,<2.0.0)", "openai[aiohttp] (>=1.4.0,<2.0.0)", "sqlalchemy (>=2.0.23,<3.0.0)"]
+inference = ["anthropic (>=0.80.0,<0.81.0)", "azure-ai-inference (>=1.0.0b3,<2.0.0)", "boto3 (>=1.34.161,<2.0.0)", "google-genai (>=1.30.0,<2.0.0)", "groq (==0.23.1)", "mistralai (>=1.0.2,<2.0.0)", "openai[aiohttp] (>=2.44.0,<3.0.0)", "sqlalchemy (>=2.0.23,<3.0.0)"]
 notebook = ["nbclient (>=0.10.0,<0.11.0)", "nbformat (>=5.0.0,<6.0.0)", "psutil (>=6.1.0,<7.0.0)"]
 runner = ["redis (>=5.0.0)", "sqlalchemy (>=2.0.23,<3.0.0)"]
 runner-gcp = ["google-cloud-storage (>=2.14.0)"]
 screenshots = ["playwright (>=1.40.0,<2.0.0)"]
 services = ["fastapi (>=0.112.1,<0.113.0)", "uvicorn (>=0.30.6,<0.31.0)"]
 viz = ["altair (>=5.0.0,<6.0.0)", "nbclient (>=0.10.0,<0.11.0)", "nbformat (>=5.0.0,<6.0.0)", "pydot (>=2.0.0,<3.0.0)", "termplotlib (>=0.3.9,<0.4.0)"]
+
+[package.source]
+type = "git"
+url = "https://github.com/expectedparrot/edsl.git"
+reference = "68e7a444596248958851cc335a599a1c3cb8987f"
+resolved_reference = "68e7a444596248958851cc335a599a1c3cb8987f"
 
 [[package]]
 name = "frozenlist"
@@ -1794,28 +1796,21 @@ test = ["pytest", "tornado (>=4.5)", "typeguard"]
 
 [[package]]
 name = "typer"
-version = "0.9.4"
+version = "0.26.8"
 description = "Typer, build great CLIs. Easy to code. Based on Python type hints."
 optional = false
-python-versions = ">=3.6"
+python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "typer-0.9.4-py3-none-any.whl", hash = "sha256:aa6c4a4e2329d868b80ecbaf16f807f2b54e192209d7ac9dd42691d63f7a54eb"},
-    {file = "typer-0.9.4.tar.gz", hash = "sha256:f714c2d90afae3a7929fcd72a3abb08df305e1ff61719381384211c4070af57f"},
+    {file = "typer-0.26.8-py3-none-any.whl", hash = "sha256:3512ca79ac5c11113414b36e80281b872884477722440691c89d1112e321a49c"},
+    {file = "typer-0.26.8.tar.gz", hash = "sha256:c244a6bd558886fe3f8780efb6bdd28bb9aff005a94eedebaa5cb32926fe2f7e"},
 ]
 
 [package.dependencies]
-click = ">=7.1.1,<9.0.0"
-colorama = {version = ">=0.4.3,<0.5.0", optional = true, markers = "extra == \"all\""}
-rich = {version = ">=10.11.0,<14.0.0", optional = true, markers = "extra == \"all\""}
-shellingham = {version = ">=1.3.0,<2.0.0", optional = true, markers = "extra == \"all\""}
-typing-extensions = ">=3.7.4.3"
-
-[package.extras]
-all = ["colorama (>=0.4.3,<0.5.0)", "rich (>=10.11.0,<14.0.0)", "shellingham (>=1.3.0,<2.0.0)"]
-dev = ["autoflake (>=1.3.1,<2.0.0)", "flake8 (>=3.8.3,<4.0.0)", "pre-commit (>=2.17.0,<3.0.0)"]
-doc = ["cairosvg (>=2.5.2,<3.0.0)", "mdx-include (>=1.4.1,<2.0.0)", "mkdocs (>=1.1.2,<2.0.0)", "mkdocs-material (>=8.1.4,<9.0.0)", "pillow (>=9.3.0,<10.0.0)"]
-test = ["black (>=22.3.0,<23.0.0)", "coverage (>=6.2,<7.0)", "isort (>=5.0.6,<6.0.0)", "mypy (==0.971)", "pytest (>=4.4.0,<8.0.0)", "pytest-cov (>=2.10.0,<5.0.0)", "pytest-sugar (>=0.9.4,<0.10.0)", "pytest-xdist (>=1.32.0,<4.0.0)", "rich (>=10.11.0,<14.0.0)", "shellingham (>=1.3.0,<2.0.0)"]
+annotated-doc = ">=0.0.2"
+colorama = {version = "*", markers = "platform_system == \"Windows\""}
+rich = ">=13.8.0"
+shellingham = ">=1.3.0"
 
 [[package]]
 name = "typing-extensions"
@@ -1987,4 +1982,4 @@ dev = ["pytest"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "9e9d777c0e05622a4c62e8461fa4dcec6e58db919ed62d53b4e24a6905fc0685"
+content-hash = "dbffd5cf679406631117f4a824674517c35460a841ffe0206cce492f08d20e53"
