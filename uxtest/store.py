@@ -160,7 +160,6 @@ class Store:
         *,
         force: bool = False,
         project_name: str | None = None,
-        base_url: str = "http://127.0.0.1:8765/?variant=confusing",
     ) -> "Store":
         root_path = Path(root).resolve()
         store_path = root_path / STORE_DIRNAME
@@ -174,7 +173,7 @@ class Store:
         store.locks_path.mkdir(parents=True, exist_ok=True)
 
         if force or not store.config_path.exists():
-            atomic_write_yaml(store.config_path, default_config(project_name or root_path.name, base_url))
+            atomic_write_yaml(store.config_path, default_config(project_name or root_path.name))
 
         example_persona = store.personas_path / "seniors.yaml"
         if not example_persona.exists():
@@ -458,11 +457,10 @@ gc.log
 """
 
 
-def default_config(project_name: str, base_url: str) -> dict[str, Any]:
+def default_config(project_name: str) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "project_name": slugify(project_name),
-        "base_url": base_url,
         "defaults": {
             "model": "gpt-4o",
             "temperature": 0.7,

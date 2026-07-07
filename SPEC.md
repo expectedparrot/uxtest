@@ -123,7 +123,6 @@ a trailing newline. Every structured file carries a `schema_version` field
 ```yaml
 schema_version: 1
 project_name: acme-checkout
-base_url: https://staging.acme.example
 
 defaults:
   model: claude-sonnet-4-6
