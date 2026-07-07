@@ -90,7 +90,7 @@ def slug(value: str) -> str:
     return "".join(ch if ch.isalnum() else "-" for ch in value.lower()).strip("-")
 
 
-out_dir = Path(".uxtest/personas")
+out_dir = Path("uxtest_store/personas")
 out_dir.mkdir(parents=True, exist_ok=True)
 
 for agent in agents:
@@ -196,13 +196,13 @@ uv run uxtest ci examples/<site_or_product>/longitudinal-regression.yaml
 Open:
 
 ```text
-.uxtest/comparisons/acme-demo-path-regression.html
+uxtest_store/comparisons/acme-demo-path-regression.html
 ```
 
 Then inspect:
 
 ```text
-.uxtest/studies/<study-id>/analysis/log.html
+uxtest_store/studies/<study-id>/analysis/log.html
 ```
 
 Keep fixture IDs stable for the same recurring study. Use new IDs only when the
@@ -313,8 +313,8 @@ uv run uxtest humanize-export <study-id> \
 Review and launch:
 
 ```bash
-uv run python .uxtest/studies/<study-id>/analysis/humanize_survey.py
-uv run python .uxtest/studies/<study-id>/analysis/humanize_survey.py --launch
+uv run python uxtest_store/studies/<study-id>/analysis/humanize_survey.py
+uv run python uxtest_store/studies/<study-id>/analysis/humanize_survey.py --launch
 ```
 
 Useful human questions include:

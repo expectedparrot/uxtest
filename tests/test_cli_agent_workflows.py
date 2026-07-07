@@ -42,7 +42,7 @@ def test_persona_list_show_and_path(tmp_path, capsys):
     assert "Evaluates procurement risk" in capsys.readouterr().out
 
     main(["--store", str(store.root), "persona", "path", "enterprise-buyer"])
-    assert ".uxtest/personas/enterprise-buyer.yaml" in capsys.readouterr().out
+    assert "uxtest_store/personas/enterprise-buyer.yaml" in capsys.readouterr().out
 
 
 def test_trace_summary_and_edsl_jobs(tmp_path, capsys):
@@ -65,7 +65,7 @@ def test_report_writes_narrative_markdown(tmp_path, capsys):
     main(["--store", str(store.root), "report", study_id])
 
     output = capsys.readouterr().out
-    assert ".uxtest/studies/" in output
+    assert "uxtest_store/studies/" in output
     report = store.study_dir(study_id) / "analysis" / "narrative_report.md"
     text = report.read_text(encoding="utf-8")
     assert "# Founder Findability" in text
@@ -109,7 +109,7 @@ def test_batch_report_dedupes_findings_and_flags_reliability(tmp_path, capsys):
     )
 
     output = capsys.readouterr().out
-    assert ".uxtest/comparisons/acme-cross-study.md" in output
+    assert "uxtest_store/comparisons/acme-cross-study.md" in output
     report = store.path / "comparisons" / "acme-cross-study.md"
     text = report.read_text(encoding="utf-8")
     assert "# Acme Cross Study" in text
@@ -188,7 +188,7 @@ def _store_with_edsl_trace(tmp_path):
 
 
 def _store_with_batch_study(tmp_path, *, title, outcome, finding_title, final_url):
-    store = Store.init(tmp_path) if not (tmp_path / ".uxtest").exists() else Store(tmp_path / ".uxtest")
+    store = Store.init(tmp_path) if not (tmp_path / "uxtest_store").exists() else Store(tmp_path / "uxtest_store")
     study_dir = store.create_study(
         title,
         task="Find a buying path.",

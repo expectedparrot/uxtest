@@ -1,4 +1,4 @@
-# Spec: `.uxtest` File-Based Project Store
+# Spec: `uxtest_store` File-Based Project Store
 
 **Status:** Draft
 **Version:** 0.1.0
@@ -8,7 +8,7 @@
 
 `uxtest` is a Python CLI that runs synthetic-user UX studies against live web
 applications using an LLM-driven agent loop and Playwright browser automation.
-This document specifies the **file-based project store**: a `.uxtest/`
+This document specifies the **file-based project store**: a `uxtest_store/`
 directory that holds all project state — study requests, run traces,
 screenshots, accessibility audits, analysis output, and configuration.
 
@@ -41,7 +41,7 @@ screenshots, accessibility audits, analysis output, and configuration.
 
 | Term | Definition |
 |---|---|
-| **Project** | A directory tree rooted at the parent of a `.uxtest/` directory. One project per product/site under test, typically. |
+| **Project** | A directory tree rooted at the parent of a `uxtest_store/` directory. One project per product/site under test, typically. |
 | **Persona** | A named synthetic-user profile (demographics, goals, tech literacy, patience, accessibility needs) defined in YAML. |
 | **Study** | A single research request: one task + target URL + persona set + run count. The unit of execution, analysis, and comparison. |
 | **Run** | One agent session: one persona instance attempting the study task once. Produces a trace, screenshots, and per-page audits. |
@@ -51,7 +51,7 @@ screenshots, accessibility audits, analysis output, and configuration.
 ## 3. Directory Layout
 
 ```
-.uxtest/
+uxtest_store/
 ├── config.yaml                     # project defaults
 ├── personas/
 │   ├── seniors.yaml
@@ -83,7 +83,7 @@ screenshots, accessibility audits, analysis output, and configuration.
 
 ### 3.1 Path rules
 
-- All paths inside `.uxtest/` are relative; the store must be relocatable
+- All paths inside `uxtest_store/` are relative; the store must be relocatable
   (moving the project directory must not break anything).
 - Directory and file names are restricted to `[a-z0-9._-]` to stay portable
   across macOS, Linux, and Windows.
@@ -95,7 +95,7 @@ screenshots, accessibility audits, analysis output, and configuration.
 ### 4.1 Discovery
 
 Commands locate the store by walking up from the current working directory
-(like `git`), stopping at the first directory containing `.uxtest/`. The
+(like `git`), stopping at the first directory containing `uxtest_store/`. The
 `UXTEST_DIR` environment variable, or a global `--store PATH` flag, overrides
 discovery. If no store is found, commands that need one exit with code `3`
 and a hint to run `uxtest init`.
@@ -104,10 +104,10 @@ and a hint to run `uxtest init`.
 
 Creates:
 
-- `.uxtest/config.yaml` with commented defaults
-- `.uxtest/personas/` containing one example persona
+- `uxtest_store/config.yaml` with commented defaults
+- `uxtest_store/personas/` containing one example persona
 - empty `studies/`, `cache/`, `locks/`
-- `.uxtest/.gitignore` per §12
+- `uxtest_store/.gitignore` per §12
 
 `init` refuses to run inside an existing store unless `--force` is given;
 `--force` only rewrites `config.yaml` defaults and never touches `studies/`.
@@ -445,7 +445,7 @@ valid up to the last complete line and are included in analysis only with
     keeping those referenced as `evidence` in any `findings.json`.
   - `--runs --keep-last N --per-study`: prune oldest run directories.
   - `--cache`: clear the LLM cache.
-- `gc` writes a `gc.log` line per deletion under `.uxtest/` for audit.
+- `gc` writes a `gc.log` line per deletion under `uxtest_store/` for audit.
 - `uxtest study archive <id>` tars a study directory to
   `studies/<id>.tar.zst` and removes the directory; `unarchive` reverses it.
 
@@ -460,7 +460,7 @@ valid up to the last complete line and are included in analysis only with
 
 ## 12. Version Control Guidance
 
-`uxtest init` writes `.uxtest/.gitignore`:
+`uxtest init` writes `uxtest_store/.gitignore`:
 
 ```gitignore
 # Derived and bulky data — keep out of git
@@ -521,7 +521,7 @@ must be added to the findings schema first (and version-bumped).
 - Screenshots may capture sensitive data on real sites; `gc` and
   `screenshot: off` are the mitigations, and the docs must call this out.
 - The store contains LLM prompts/outputs in `cache/`; treat the whole
-  `.uxtest/` directory as project-confidential by default.
+  `uxtest_store/` directory as project-confidential by default.
 
 ## 16. Open Questions
 
@@ -538,7 +538,7 @@ must be added to the findings schema first (and version-bumped).
 ## 17. EDSL Integration Plan
 
 `uxtest` should use EDSL for the research and inference layer, while keeping
-browser automation and the `.uxtest/` store in this package. This keeps v1
+browser automation and the `uxtest_store/` store in this package. This keeps v1
 small: EDSL already provides agents, scenario parameterization, vision-capable
 file inputs, model selection, caching, and structured results; `uxtest` adds
 the browser-control loop and UX-study file layout.
@@ -554,7 +554,7 @@ the browser-control loop and UX-study file layout.
 | Decision prompt | `QuestionPydantic` or `QuestionExtract` | Use a structured question for each agent step so the answer validates to one browser action plus rationale/frustration/status. Prefer `QuestionPydantic` when provider schema support is available. |
 | Analysis prompt | EDSL survey/job | Run analysis over trace summaries and evidence screenshots, then normalize EDSL results into `findings.json` and `scores.json`. |
 | Model config | `edsl.Model` | `resolved_config.model`, temperature, max tokens, and provider-specific settings construct the EDSL model. |
-| Cache | EDSL cache + `.uxtest/cache` | Prefer EDSL's cache machinery for model calls, with an adapter or export step so `.uxtest/cache/llm/` remains inspectable and deletable. |
+| Cache | EDSL cache + `uxtest_store/cache` | Prefer EDSL's cache machinery for model calls, with an adapter or export step so `uxtest_store/cache/llm/` remains inspectable and deletable. |
 
 ### 17.2 V1 execution architecture
 
@@ -577,7 +577,7 @@ In v1, `uxtest` owns Playwright directly and calls EDSL at decision points:
    - append one line to `trace.jsonl`.
 5. Finalize `meta.json` and update `study.yaml` status.
 
-The `.uxtest/` files are the source of truth. EDSL `Results` objects are useful
+The `uxtest_store/` files are the source of truth. EDSL `Results` objects are useful
 intermediate objects, but v1 should not require readers to deserialize EDSL
 objects in order to inspect, analyze, or migrate a project store.
 
@@ -634,4 +634,4 @@ pieces to move into EDSL are:
   JSONL events.
 
 Native Playwright support in EDSL should be an extension point, not a
-requirement for reading `.uxtest/` stores or running analysis.
+requirement for reading `uxtest_store/` stores or running analysis.

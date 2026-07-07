@@ -80,7 +80,7 @@ Use `setup_steps` or `auth_state` so the actual study begins after login.
 ```yaml
 env_file: secrets.env
 auth_state:
-  load: .uxtest/auth/admin-user.json
+  load: uxtest_store/auth/admin-user.json
 setup_steps:
   - type: find
     text: Dashboard

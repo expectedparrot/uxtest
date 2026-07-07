@@ -35,10 +35,10 @@ def main(argv: list[str] | None = None) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="uxtest")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
-    parser.add_argument("--store", help="Path to .uxtest or its project root.")
+    parser.add_argument("--store", help="Path to uxtest_store or its project root.")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    init = sub.add_parser("init", help="Create a .uxtest store.")
+    init = sub.add_parser("init", help="Create a uxtest_store store.")
     init.add_argument("--force", action="store_true")
     init.add_argument("--project-name")
     init.add_argument("--base-url", default="http://127.0.0.1:8765/?variant=confusing")
@@ -140,7 +140,7 @@ def build_parser() -> argparse.ArgumentParser:
     batch_report.add_argument("--study", action="append", dest="studies", required=True, help="Study id to include. Can be passed multiple times.")
     batch_report.add_argument("--comparison", action="append", type=Path, dest="comparisons", help="Comparison HTML path to link. Can be passed multiple times.")
     batch_report.add_argument("--format", action="append", help="Report format: md, html, pdf, or comma-separated list. Defaults to md.")
-    batch_report.add_argument("--output-dir", type=Path, help="Output directory. Defaults to .uxtest/comparisons.")
+    batch_report.add_argument("--output-dir", type=Path, help="Output directory. Defaults to uxtest_store/comparisons.")
     batch_report.set_defaults(func=cmd_batch_report)
     batch_run = batch_sub.add_parser("run", help="Run fixture batch manifest and synthesize a cross-study report.")
     batch_run.add_argument("manifest", type=Path, help="Batch YAML manifest listing fixture paths.")
@@ -236,7 +236,7 @@ def build_parser() -> argparse.ArgumentParser:
     figma_doctor = figma_sub.add_parser("doctor", help="Check Figma environment setup.")
     figma_doctor.add_argument("--json", action="store_true")
     figma_doctor.set_defaults(func=cmd_figma_doctor)
-    figma_import = figma_sub.add_parser("import", help="Import Figma frame screenshots into .uxtest.")
+    figma_import = figma_sub.add_parser("import", help="Import Figma frame screenshots into uxtest_store.")
     figma_import.add_argument("url", help="Figma file/design/prototype URL.")
     figma_import.add_argument("--frames", choices=["selected", "top-level", "all"], default="selected")
     figma_import.add_argument("--limit", type=int, default=20, help="Maximum frames to import for top-level/all modes.")
@@ -350,7 +350,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def cmd_init(args: argparse.Namespace) -> None:
     store_root = Path(args.store).expanduser() if args.store else Path.cwd()
-    if store_root.name == ".uxtest":
+    if store_root.name == "uxtest_store":
         store_root = store_root.parent
     store = Store.init(
         store_root,
@@ -1332,7 +1332,7 @@ def _find_or_init_store(override: str | Path | None) -> Store:
         if exc.exit_code != 3:
             raise
         root = Path(override).expanduser() if override else Path.cwd()
-        if root.name == ".uxtest":
+        if root.name == "uxtest_store":
             root = root.parent
         store = Store.init(root, project_name="uxtest")
         print(f"Initialized {store.path}")

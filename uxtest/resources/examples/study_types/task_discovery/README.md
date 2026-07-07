@@ -70,7 +70,7 @@ decision maker, and support engineer.
 ## Using An Existing EDSL AgentList
 
 If you already have personas as an EDSL `AgentList`, use that as the source of
-truth and export the agents into `.uxtest/personas/*.yaml`.
+truth and export the agents into `uxtest_store/personas/*.yaml`.
 
 Example:
 
@@ -117,7 +117,7 @@ def slug(value: str) -> str:
     return "".join(ch if ch.isalnum() else "-" for ch in value.lower()).strip("-")
 
 
-out_dir = Path(".uxtest/personas")
+out_dir = Path("uxtest_store/personas")
 out_dir.mkdir(parents=True, exist_ok=True)
 
 for agent in agents:
@@ -229,13 +229,13 @@ The command will:
 Open the comparison report:
 
 ```text
-.uxtest/comparisons/acme-task-discovery.html
+uxtest_store/comparisons/acme-task-discovery.html
 ```
 
 Then inspect each study's developer log:
 
 ```text
-.uxtest/studies/<study-id>/analysis/log.html
+uxtest_store/studies/<study-id>/analysis/log.html
 ```
 
 Use the log to answer:
@@ -362,13 +362,13 @@ This writes a generated EDSL script in the study analysis directory. The script
 is a dry run by default:
 
 ```bash
-uv run python .uxtest/studies/<study-id>/analysis/humanize_survey.py
+uv run python uxtest_store/studies/<study-id>/analysis/humanize_survey.py
 ```
 
 Launch the human survey only after reviewing the generated questions and CSS:
 
 ```bash
-uv run python .uxtest/studies/<study-id>/analysis/humanize_survey.py --launch
+uv run python uxtest_store/studies/<study-id>/analysis/humanize_survey.py --launch
 ```
 
 The generated script uses EDSL `humanize_schema` with survey-level

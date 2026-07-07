@@ -125,14 +125,14 @@ def test_fixture_run_overrides_include_auth_setup_fields():
         {
             "device": "desktop",
             "setup_steps": [{"type": "type", "name": "email", "env": "TEST_EMAIL"}],
-            "auth_state": {"save": ".uxtest/auth/example.json"},
+            "auth_state": {"save": "uxtest_store/auth/example.json"},
             "redact_patterns": ["secret-[0-9]+"],
         },
         {"name": "default"},
     )
 
     assert overrides["setup_steps"][0]["env"] == "TEST_EMAIL"
-    assert overrides["auth_state"]["save"] == ".uxtest/auth/example.json"
+    assert overrides["auth_state"]["save"] == "uxtest_store/auth/example.json"
     assert overrides["redact_patterns"] == ["secret-[0-9]+"]
     assert overrides["viewport"] == {"width": 1280, "height": 800}
 

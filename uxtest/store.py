@@ -14,7 +14,7 @@ from uuid import uuid4
 import yaml
 
 
-STORE_DIRNAME = ".uxtest"
+STORE_DIRNAME = "uxtest_store"
 NAME_RE = re.compile(r"^[a-z0-9._-]+$")
 SLUG_RE = re.compile(r"[^a-z0-9]+")
 

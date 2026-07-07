@@ -79,7 +79,7 @@ env_file: secrets.env
 redact_patterns:
   - "test-user-[^\\s]+"
 auth_state:
-  save: .uxtest/auth/onboarding-user.json
+  save: uxtest_store/auth/onboarding-user.json
 setup_steps:
   - type: click
     label: Log in
@@ -99,7 +99,7 @@ For repeated runs, load a prepared session:
 
 ```yaml
 auth_state:
-  load: .uxtest/auth/onboarding-user.json
+  load: uxtest_store/auth/onboarding-user.json
 ```
 
 Use fresh or reset test accounts when possible. Reusing a fully activated

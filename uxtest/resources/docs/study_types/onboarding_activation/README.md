@@ -85,7 +85,7 @@ def slug(value: str) -> str:
     return "".join(ch if ch.isalnum() else "-" for ch in value.lower()).strip("-")
 
 
-out_dir = Path(".uxtest/personas")
+out_dir = Path("uxtest_store/personas")
 out_dir.mkdir(parents=True, exist_ok=True)
 
 for agent in agents:
@@ -163,7 +163,7 @@ env_file: secrets.env
 redact_patterns:
   - "test-user-[^\\s]+"
 auth_state:
-  save: .uxtest/auth/onboarding-user.json
+  save: uxtest_store/auth/onboarding-user.json
 setup_steps:
   - type: click
     label: Log in
@@ -183,7 +183,7 @@ For repeated runs, load a prepared session:
 
 ```yaml
 auth_state:
-  load: .uxtest/auth/onboarding-user.json
+  load: uxtest_store/auth/onboarding-user.json
 ```
 
 Use fresh or reset test accounts when possible. Reusing a fully activated
@@ -200,13 +200,13 @@ uv run uxtest ci examples/<site_or_product>/onboarding-activation.yaml
 Open:
 
 ```text
-.uxtest/comparisons/acme-onboarding.html
+uxtest_store/comparisons/acme-onboarding.html
 ```
 
 Then inspect:
 
 ```text
-.uxtest/studies/<study-id>/analysis/log.html
+uxtest_store/studies/<study-id>/analysis/log.html
 ```
 
 Authenticated onboarding studies should run against staging, disposable
@@ -304,8 +304,8 @@ uv run uxtest humanize-export <study-id> \
 Review and launch the generated survey:
 
 ```bash
-uv run python .uxtest/studies/<study-id>/analysis/humanize_survey.py
-uv run python .uxtest/studies/<study-id>/analysis/humanize_survey.py --launch
+uv run python uxtest_store/studies/<study-id>/analysis/humanize_survey.py
+uv run python uxtest_store/studies/<study-id>/analysis/humanize_survey.py --launch
 ```
 
 Useful human questions include:
