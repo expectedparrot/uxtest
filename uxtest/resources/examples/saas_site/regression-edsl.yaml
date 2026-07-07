@@ -37,6 +37,8 @@ animation_max_width: 520
 expected_flaws: expected_flaws.yaml
 eval_policy: threshold
 minimum_recovered_expected: 1
+overrides:
+  model: gpt-4o
 variants:
   - name: flawed
   - name: clear

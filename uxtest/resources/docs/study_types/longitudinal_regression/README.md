@@ -144,6 +144,8 @@ keep_runs: 12
 analysis_driver: local
 expected_flaws: expected_flaws.yaml
 eval_policy: report_only
+overrides:
+  model: gpt-4o
 variants:
   - name: current-desktop
     device: desktop

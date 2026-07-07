@@ -41,7 +41,6 @@ def build_parser() -> argparse.ArgumentParser:
     init = sub.add_parser("init", help="Create a uxtest_store store.")
     init.add_argument("--force", action="store_true")
     init.add_argument("--project-name")
-    init.add_argument("--base-url", default="http://127.0.0.1:8765/?variant=confusing")
     init.set_defaults(func=cmd_init)
 
     persona = sub.add_parser("persona", help="Manage personas.")
@@ -356,7 +355,6 @@ def cmd_init(args: argparse.Namespace) -> None:
         store_root,
         force=args.force,
         project_name=args.project_name,
-        base_url=args.base_url,
     )
     print(f"Initialized {store.path}")
 

@@ -22,6 +22,8 @@ analysis_driver: local
 eval_policy: report_only
 animation_delay: 250
 animation_max_width: 640
+overrides:
+  model: gpt-4o
 variants:
   - name: founder-desktop
     device: desktop
