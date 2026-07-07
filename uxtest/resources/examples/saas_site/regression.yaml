@@ -30,6 +30,8 @@ analysis_driver: local
 animation_delay: 250
 animation_max_width: 520
 expected_flaws: expected_flaws.yaml
+overrides:
+  model: gpt-4o
 variants:
   - name: flawed
   - name: clear

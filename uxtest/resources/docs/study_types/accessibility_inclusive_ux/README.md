@@ -160,6 +160,8 @@ max_concurrent_runs: 1
 keep_runs: 8
 analysis_driver: local
 eval_policy: report_only
+overrides:
+  model: gpt-4o
 variants:
   - name: mobile
     device: iphone

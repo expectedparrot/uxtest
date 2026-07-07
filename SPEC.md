@@ -192,6 +192,7 @@ success_criteria: >
 personas: [seniors, power-users]
 runs_per_persona: 10        # overrides config default
 overrides:                  # optional per-study config overrides
+  model: gpt-4o
   max_steps: 40
 tags: [checkout, q2-redesign]
 ```
