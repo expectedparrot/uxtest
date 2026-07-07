@@ -19,7 +19,7 @@ from .package_resources import (
     resource_as_file,
     resource_files as _resource_files,
 )
-from .store import Store, StoreError, find_store
+from .store import Store, StoreError, default_new_store_root, find_store
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -599,7 +599,7 @@ def cmd_batch_run(args: argparse.Namespace) -> None:
     except StoreError as exc:
         if exc.exit_code != 3:
             raise
-        store = Store.init(Path.cwd(), project_name="uxtest-batch")
+        store = Store.init(default_new_store_root(), project_name="uxtest-batch")
         print(f"Initialized {store.path}")
     paths = run_batch_manifest(store, args.manifest, formats=args.format, open_reports=args.open)
     for path in paths:
@@ -720,7 +720,7 @@ def cmd_ci(args: argparse.Namespace) -> None:
     except StoreError as exc:
         if exc.exit_code != 3:
             raise
-        store = Store.init(Path.cwd(), project_name="uxtest-ci")
+        store = Store.init(default_new_store_root(), project_name="uxtest-ci")
         print(f"Initialized {store.path}")
     failures: list[str] = []
     for fixture_path in args.fixtures:
@@ -945,7 +945,7 @@ def cmd_example_run(args: argparse.Namespace) -> None:
         except StoreError as exc:
             if exc.exit_code != 3:
                 raise
-            store = Store.init(Path.cwd(), project_name="uxtest-example")
+            store = Store.init(default_new_store_root(), project_name="uxtest-example")
             print(f"Initialized {store.path}")
 
         _ensure_example_personas(store)
@@ -995,7 +995,7 @@ def cmd_example_compare(args: argparse.Namespace) -> None:
         except StoreError as exc:
             if exc.exit_code != 3:
                 raise
-            store = Store.init(Path.cwd(), project_name="uxtest-example")
+            store = Store.init(default_new_store_root(), project_name="uxtest-example")
             print(f"Initialized {store.path}")
 
         personas = args.personas or list(EXAMPLE_PERSONAS)
@@ -1058,7 +1058,7 @@ def cmd_example_eval_saas(args: argparse.Namespace) -> None:
     except StoreError as exc:
         if exc.exit_code != 3:
             raise
-        store = Store.init(Path.cwd(), project_name="uxtest-example")
+        store = Store.init(default_new_store_root(), project_name="uxtest-example")
         print(f"Initialized {store.path}")
     fixture_path = _example_resource_path("saas_site/regression.yaml")
     result = run_fixture(
@@ -1331,7 +1331,7 @@ def _find_or_init_store(override: str | Path | None) -> Store:
     except StoreError as exc:
         if exc.exit_code != 3:
             raise
-        root = Path(override).expanduser() if override else Path.cwd()
+        root = Path(override).expanduser() if override else default_new_store_root()
         if root.name == "uxtest_store":
             root = root.parent
         store = Store.init(root, project_name="uxtest")

@@ -57,10 +57,23 @@ def find_store(start: Path | str | None = None, override: Path | str | None = No
 
     current = Path(start or os.getcwd()).resolve()
     for directory in (current, *current.parents):
-        candidate = directory / STORE_DIRNAME
-        if candidate.is_dir():
-            return Store(candidate)
+        for candidate in (directory / STORE_DIRNAME, directory / "data" / STORE_DIRNAME):
+            if candidate.is_dir():
+                return Store(candidate)
     raise StoreError("No uxtest store found. Run `uxtest init` first.", exit_code=3)
+
+
+def default_new_store_root(base: Path | str | None = None) -> Path:
+    """Directory to create a brand-new store in when none is discovered.
+
+    When `base` contains a `data/` directory, the store nests inside it, so a
+    fresh store lands at `data/uxtest_store`; otherwise it is created directly
+    under `base` (the cwd). `find_store` checks both locations while walking up,
+    so wherever a project is driven from, the same store is found.
+    """
+    base_path = Path(base or os.getcwd()).resolve()
+    data_dir = base_path / "data"
+    return data_dir if data_dir.is_dir() else base_path
 
 
 def atomic_write_text(path: Path, text: str) -> None:
