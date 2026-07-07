@@ -67,7 +67,7 @@ burst of simultaneous sessions.
 
 After the run, inspect:
 
-- `.uxtest/comparisons/jjh-academic-site-discovery.html`
+- `uxtest_store/comparisons/jjh-academic-site-discovery.html`
 - each study's `analysis/log.html`
 - each study's `analysis/uxr_report.html`
 - each study's generated GIF index from `uxtest animate`

@@ -200,14 +200,14 @@ python -m playwright install chromium
 
 ## Operating Model
 
-`uxtest` stores state under `.uxtest/` in the current project:
+`uxtest` stores state under `uxtest_store/` in the current project:
 
-- `.uxtest/personas/*.yaml`: reusable persona templates.
-- `.uxtest/studies/<study-id>/study.yaml`: study definition.
-- `.uxtest/studies/<study-id>/runs/<run-id>/`: raw traces, screenshots, and run
+- `uxtest_store/personas/*.yaml`: reusable persona templates.
+- `uxtest_store/studies/<study-id>/study.yaml`: study definition.
+- `uxtest_store/studies/<study-id>/runs/<run-id>/`: raw traces, screenshots, and run
   metadata.
-- `.uxtest/studies/<study-id>/analysis/`: generated reports and summaries.
-- `.uxtest/comparisons/*.html`: multi-study comparison reports.
+- `uxtest_store/studies/<study-id>/analysis/`: generated reports and summaries.
+- `uxtest_store/comparisons/*.html`: multi-study comparison reports.
 
 Raw run traces are the source of truth. Reports are derived and can be
 regenerated.
@@ -312,7 +312,7 @@ redact_patterns:
   - "test-user-[^\\s]+"
   - "s3cr3t-[^\\s]+"
 auth_state:
-  save: .uxtest/auth/example-user.json
+  save: uxtest_store/auth/example-user.json
 setup_steps:
   - type: click
     label: Log in
@@ -332,7 +332,7 @@ Load saved Playwright storage state in later studies:
 
 ```yaml
 auth_state:
-  load: .uxtest/auth/example-user.json
+  load: uxtest_store/auth/example-user.json
 ```
 
 Supported setup actions are `click`, `type`, `select`, `wait`, `back`, `scroll`,
@@ -347,13 +347,13 @@ test auth bypass. CAPTCHA and live MFA need a test bypass or manual hook.
 After a run, inspect these first:
 
 ```text
-.uxtest/comparisons/<comparison>.html
-.uxtest/studies/<study-id>/analysis/report.html
-.uxtest/studies/<study-id>/analysis/log.html
-.uxtest/studies/<study-id>/analysis/uxr_report.html
-.uxtest/studies/<study-id>/analysis/findings.json
-.uxtest/studies/<study-id>/analysis/scores.json
-.uxtest/studies/<study-id>/analysis/animations/index.html
+uxtest_store/comparisons/<comparison>.html
+uxtest_store/studies/<study-id>/analysis/report.html
+uxtest_store/studies/<study-id>/analysis/log.html
+uxtest_store/studies/<study-id>/analysis/uxr_report.html
+uxtest_store/studies/<study-id>/analysis/findings.json
+uxtest_store/studies/<study-id>/analysis/scores.json
+uxtest_store/studies/<study-id>/analysis/animations/index.html
 ```
 
 Use `log.html` to debug the system. It shows step-level details: persona,
@@ -369,9 +369,9 @@ uxtest show <study-id> --json
 uxtest show <study-id> <run-id> --trace --json
 uxtest trace <study-id>
 uxtest trace <study-id> --edsl-jobs
-rg -n '"outcome"|"action_recovery"|"type": "find"|"gave_up"|"max_steps"' .uxtest/studies/<study-id>
-rg -n '"action_outcome"|"no_visible_change"|"menu_opened"|"same_page_state_change"' .uxtest/studies/<study-id>
-rg -n '"stop_signal"|"stop_quality"|"enough_evidence_but_continued"|"blocked_by_auth"' .uxtest/studies/<study-id>
+rg -n '"outcome"|"action_recovery"|"type": "find"|"gave_up"|"max_steps"' uxtest_store/studies/<study-id>
+rg -n '"action_outcome"|"no_visible_change"|"menu_opened"|"same_page_state_change"' uxtest_store/studies/<study-id>
+rg -n '"stop_signal"|"stop_quality"|"enough_evidence_but_continued"|"blocked_by_auth"' uxtest_store/studies/<study-id>
 ```
 
 Generate a narrative report when the user wants a stakeholder-readable summary
@@ -421,7 +421,7 @@ uxtest batch report expectedparrot-cross-study \
   --title "Expected Parrot Cross-Study Report" \
   --study <study-id-a> \
   --study <study-id-b> \
-  --comparison .uxtest/comparisons/<comparison-a>.html \
+  --comparison uxtest_store/comparisons/<comparison-a>.html \
   --format md,html,pdf
 ```
 
@@ -444,13 +444,13 @@ Run it:
 uxtest batch run expectedparrot-batch.yaml
 ```
 
-Batch reports are written to `.uxtest/comparisons/` by default:
+Batch reports are written to `uxtest_store/comparisons/` by default:
 
 ```text
-.uxtest/comparisons/<name>.md
-.uxtest/comparisons/<name>.html
-.uxtest/comparisons/<name>.pdf
-.uxtest/comparisons/<name>.manifest.json
+uxtest_store/comparisons/<name>.md
+uxtest_store/comparisons/<name>.html
+uxtest_store/comparisons/<name>.pdf
+uxtest_store/comparisons/<name>.manifest.json
 ```
 
 ## Figma Design Studies
@@ -475,7 +475,7 @@ uxtest figma doctor
 Static frame imports require `FIGMA_ACCESS_TOKEN`. Prototype runners can run
 without the Figma API, but prototype audits and high-quality prototype runners
 use Figma metadata when `FIGMA_ACCESS_TOKEN` is set. Metadata is cached under
-`.uxtest/figma/cache/`; if Figma returns `429`, uxtest uses stale cached
+`uxtest_store/figma/cache/`; if Figma returns `429`, uxtest uses stale cached
 metadata when available and records the rate-limit details.
 
 Import a selected frame from a copied Figma selection URL:
@@ -493,8 +493,8 @@ uxtest figma import "https://www.figma.com/design/<file-key>/<name>" --frames to
 The command writes a local design evidence bundle:
 
 ```text
-.uxtest/figma/<import-id>/manifest.json
-.uxtest/figma/<import-id>/frames/*.png
+uxtest_store/figma/<import-id>/manifest.json
+uxtest_store/figma/<import-id>/frames/*.png
 ```
 
 Generate an EDSL vision study script from an import:
@@ -514,13 +514,13 @@ uxtest figma study "https://www.figma.com/design/<file-key>/<name>?node-id=<node
 The generated script is dry-run by default:
 
 ```bash
-python .uxtest/figma/<import-id>/figma_vision_study.py
+python uxtest_store/figma/<import-id>/figma_vision_study.py
 ```
 
 Run it with EDSL remote inference:
 
 ```bash
-python .uxtest/figma/<import-id>/figma_vision_study.py --launch
+python uxtest_store/figma/<import-id>/figma_vision_study.py --launch
 ```
 
 Audit a clickable prototype before asking an agent to navigate it:
@@ -532,8 +532,8 @@ uxtest figma audit "https://www.figma.com/proto/<file-key>/<name>?node-id=<node>
 The audit writes:
 
 ```text
-.uxtest/figma/audit-<file-key>-<node>/audit.json
-.uxtest/figma/audit-<file-key>-<node>/audit.md
+uxtest_store/figma/audit-<file-key>-<node>/audit.json
+uxtest_store/figma/audit-<file-key>-<node>/audit.md
 ```
 
 Use the audit to identify visible labels that are not wired as prototype
@@ -553,13 +553,13 @@ uxtest figma prototype "https://www.figma.com/proto/<file-key>/<name>?node-id=<n
 The generated runner is dry-run by default:
 
 ```bash
-python .uxtest/figma/<prototype-id>/figma_prototype_runner.py
+python uxtest_store/figma/<prototype-id>/figma_prototype_runner.py
 ```
 
 Launch the browser and EDSL coordinate-click loop:
 
 ```bash
-python .uxtest/figma/<prototype-id>/figma_prototype_runner.py --launch
+python uxtest_store/figma/<prototype-id>/figma_prototype_runner.py --launch
 ```
 
 The runner records `failure_type` values such as `unwired_visible_affordance`,
@@ -572,7 +572,7 @@ Use `--headed` when Figma requires browser login or when you need to inspect
 prototype behavior manually:
 
 ```bash
-python .uxtest/figma/<prototype-id>/figma_prototype_runner.py --launch --headed
+python uxtest_store/figma/<prototype-id>/figma_prototype_runner.py --launch --headed
 ```
 
 Write a Markdown report of imported frames or a prototype run trace:
@@ -609,21 +609,21 @@ uxtest humanize-export <study-id> \
 The command writes:
 
 ```text
-.uxtest/studies/<study-id>/analysis/humanize_survey.py
-.uxtest/studies/<study-id>/analysis/humanize_survey.manifest.json
+uxtest_store/studies/<study-id>/analysis/humanize_survey.py
+uxtest_store/studies/<study-id>/analysis/humanize_survey.manifest.json
 ```
 
 The generated script is safe by default:
 
 ```bash
-python .uxtest/studies/<study-id>/analysis/humanize_survey.py
+python uxtest_store/studies/<study-id>/analysis/humanize_survey.py
 ```
 
 It prints the study and scenario count without launching anything. To create
 the human survey on Expected Parrot, run:
 
 ```bash
-python .uxtest/studies/<study-id>/analysis/humanize_survey.py --launch
+python uxtest_store/studies/<study-id>/analysis/humanize_survey.py --launch
 ```
 
 The generated script uses EDSL's `humanize_schema` to control human-survey
@@ -707,10 +707,10 @@ external saliency model command. If no command is configured, it fails.
 The command writes:
 
 ```text
-.uxtest/studies/<study-id>/analysis/saliency/manifest.json
-.uxtest/studies/<study-id>/analysis/saliency/index.html
-.uxtest/studies/<study-id>/analysis/saliency/*-overlay.png
-.uxtest/studies/<study-id>/analysis/saliency/*-map.png
+uxtest_store/studies/<study-id>/analysis/saliency/manifest.json
+uxtest_store/studies/<study-id>/analysis/saliency/index.html
+uxtest_store/studies/<study-id>/analysis/saliency/*-overlay.png
+uxtest_store/studies/<study-id>/analysis/saliency/*-map.png
 ```
 
 Use SUM by wrapping its inference command:
@@ -769,14 +769,14 @@ uxtest agents export <study-id>
 The command writes:
 
 ```text
-.uxtest/studies/<study-id>/analysis/agent_list.py
-.uxtest/studies/<study-id>/analysis/agent_list.manifest.json
+uxtest_store/studies/<study-id>/analysis/agent_list.py
+uxtest_store/studies/<study-id>/analysis/agent_list.manifest.json
 ```
 
 Inspect the generated list without launching inference:
 
 ```bash
-python .uxtest/studies/<study-id>/analysis/agent_list.py
+python uxtest_store/studies/<study-id>/analysis/agent_list.py
 ```
 
 Inside the generated script, call `build_agent_list()` to get an EDSL
@@ -796,20 +796,20 @@ uxtest interview <study-id> \
 The command writes:
 
 ```text
-.uxtest/studies/<study-id>/analysis/agent_interview.py
-.uxtest/studies/<study-id>/analysis/agent_interview.manifest.json
+uxtest_store/studies/<study-id>/analysis/agent_interview.py
+uxtest_store/studies/<study-id>/analysis/agent_interview.manifest.json
 ```
 
 Dry-run first:
 
 ```bash
-python .uxtest/studies/<study-id>/analysis/agent_interview.py
+python uxtest_store/studies/<study-id>/analysis/agent_interview.py
 ```
 
 Launch remote EDSL inference only when ready:
 
 ```bash
-python .uxtest/studies/<study-id>/analysis/agent_interview.py --launch
+python uxtest_store/studies/<study-id>/analysis/agent_interview.py --launch
 ```
 
 This pattern is useful for post-study synthesis questions such as:
@@ -835,7 +835,7 @@ To verify that EDSL was used, inspect `log.html` or grep traces:
 
 ```bash
 uxtest trace <study-id> --edsl-jobs
-rg -n '"question_type"|"progress_url"|"results_url"' .uxtest/studies/<study-id>/runs
+rg -n '"question_type"|"progress_url"|"results_url"' uxtest_store/studies/<study-id>/runs
 ```
 
 ## Browser Agent Behavior
@@ -880,24 +880,24 @@ the generated artifacts and write a new stakeholder-facing report.
 Read at least:
 
 ```text
-.uxtest/studies/<study-id>/study.yaml
-.uxtest/studies/<study-id>/analysis/scores.json
-.uxtest/studies/<study-id>/analysis/findings.json
-.uxtest/studies/<study-id>/analysis/log.html
-.uxtest/studies/<study-id>/runs/*/meta.json
-.uxtest/studies/<study-id>/runs/*/trace.jsonl
+uxtest_store/studies/<study-id>/study.yaml
+uxtest_store/studies/<study-id>/analysis/scores.json
+uxtest_store/studies/<study-id>/analysis/findings.json
+uxtest_store/studies/<study-id>/analysis/log.html
+uxtest_store/studies/<study-id>/runs/*/meta.json
+uxtest_store/studies/<study-id>/runs/*/trace.jsonl
 ```
 
 For comparison studies, also read:
 
 ```text
-.uxtest/comparisons/<comparison>.html
+uxtest_store/comparisons/<comparison>.html
 ```
 
 Write Markdown first:
 
 ```text
-.uxtest/studies/<study-id>/analysis/narrative_report.md
+uxtest_store/studies/<study-id>/analysis/narrative_report.md
 ```
 
 Then compile to HTML or PDF if requested.
@@ -983,7 +983,7 @@ When a study looks wrong:
 Opening files on macOS requires a GUI command:
 
 ```bash
-open .uxtest/comparisons/<report>.html
+open uxtest_store/comparisons/<report>.html
 ```
 
 Sandboxed agents may need approval before running `open`.
@@ -997,5 +997,5 @@ uv run python -m pytest -q tests
 uv build
 ```
 
-Do not delete `.uxtest/studies` unless explicitly asked. Those artifacts are
+Do not delete `uxtest_store/studies` unless explicitly asked. Those artifacts are
 often the evidence the user wants to inspect.

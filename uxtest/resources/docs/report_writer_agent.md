@@ -26,15 +26,15 @@ uxtest batch report <name> --study <study-id-a> --study <study-id-b> --format md
 Read the generated artifacts directly:
 
 ```text
-.uxtest/studies/<study-id>/study.yaml
-.uxtest/studies/<study-id>/analysis/findings.json
-.uxtest/studies/<study-id>/analysis/scores.json
-.uxtest/studies/<study-id>/analysis/log.html
-.uxtest/studies/<study-id>/analysis/report.html
-.uxtest/studies/<study-id>/runs/<run-id>/meta.json
-.uxtest/studies/<study-id>/runs/<run-id>/trace.jsonl
-.uxtest/studies/<study-id>/runs/<run-id>/screenshots/
-.uxtest/comparisons/<batch>.md
+uxtest_store/studies/<study-id>/study.yaml
+uxtest_store/studies/<study-id>/analysis/findings.json
+uxtest_store/studies/<study-id>/analysis/scores.json
+uxtest_store/studies/<study-id>/analysis/log.html
+uxtest_store/studies/<study-id>/analysis/report.html
+uxtest_store/studies/<study-id>/runs/<run-id>/meta.json
+uxtest_store/studies/<study-id>/runs/<run-id>/trace.jsonl
+uxtest_store/studies/<study-id>/runs/<run-id>/screenshots/
+uxtest_store/comparisons/<batch>.md
 ```
 
 ## Role Boundary

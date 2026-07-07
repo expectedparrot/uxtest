@@ -15,7 +15,7 @@ from uxtest.store import Store, StoreError, find_store, read_yaml
 def test_init_creates_store(tmp_path):
     store = Store.init(tmp_path, project_name="Acme Checkout")
 
-    assert store.path.name == ".uxtest"
+    assert store.path.name == "uxtest_store"
     assert store.config_path.exists()
     assert (store.personas_path / "seniors.yaml").exists()
     assert (store.path / ".gitignore").exists()

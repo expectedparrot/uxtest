@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from edsl.caching import Cache
+
 from .browser import (
     capture_state as _capture_state,
     classify_action_outcome as _classify_action_outcome,
@@ -212,7 +214,7 @@ def _run_once(
                 elif driver == "scripted":
                     decision = _scripted_decision(study, state, recent_events)
                 else:
-                    decision = _edsl_decision(study, persona_doc, resolved_config, state, run_dir, store.root, recent_events)
+                    decision = _edsl_decision(study, persona_doc, resolved_config, state, run_dir, store.root, recent_events, step)
                 decision = _normalize_stop_decision(study, resolved_config, decision)
                 action_key = (state["url"], decision.action.type, decision.action.ref, decision.action.text, decision.action.value)
                 repeated_action_count = repeated_action_count + 1 if action_key == last_action_key else 1
@@ -412,6 +414,7 @@ def _edsl_decision(
     run_dir: Path,
     project_root: Path,
     recent_events: list[dict[str, Any]],
+    step: int,
 ) -> BrowserDecision:
     _load_env(Path.cwd() / ".env")
     _load_env(project_root / ".env")
@@ -466,6 +469,7 @@ def _edsl_decision(
         pydantic_model=BrowserDecisionAnswer,
         answering_instructions=PYDANTIC_ANSWERING_INSTRUCTIONS,
     )
+    description = _edsl_job_description(study, persona_doc, step)
     last_answer = ""
     last_error = ""
     pydantic_attempts: list[dict[str, Any]] = []
@@ -473,7 +477,7 @@ def _edsl_decision(
         results = None
         result_dict: dict[str, Any] | None = None
         try:
-            results = _run_remote_edsl(question, agent, scenario, model)
+            results = _run_remote_edsl(question, agent, scenario, model, description)
             result_dict = results.to_dict()
             answer = result_dict["data"][0]["answer"]["browser_decision"]
             last_answer = json.dumps(answer, sort_keys=True) if isinstance(answer, dict) else str(answer)
@@ -526,6 +530,7 @@ def _edsl_decision(
                     agent,
                     model,
                     question_text,
+                    description,
                     last_error=last_error,
                     last_answer=last_answer,
                     pydantic_attempts=pydantic_attempts,
@@ -544,6 +549,7 @@ def _edsl_decision_fallback(
     agent: Any,
     model: Any,
     question_text: str,
+    description: str,
     *,
     last_error: str,
     last_answer: str,
@@ -556,7 +562,7 @@ def _edsl_decision_fallback(
         "Return only compact JSON with keys: action_type, ref, text, value, thinking, frustration, status."
     )
     question = QuestionFreeText(question_name="browser_decision", question_text=fallback_text)
-    results = _run_remote_edsl(question, agent, scenario, model)
+    results = _run_remote_edsl(question, agent, scenario, model, f"{description} (json-fallback)")
     result_dict = results.to_dict()
     answer = result_dict["data"][0]["answer"]["browser_decision"]
     raw_response = answer if isinstance(answer, str) else json.dumps(answer, sort_keys=True)
@@ -594,13 +600,21 @@ def _edsl_decision_fallback(
     return decision
 
 
-def _run_remote_edsl(question: Any, agent: Any, scenario: Any, model: Any) -> Any:
+def _run_remote_edsl(
+    question: Any, agent: Any, scenario: Any, model: Any, description: str
+) -> Any:
     return question.by(agent).by(scenario).by(model).run(
-        cache=False,
-        offload_execution=True,
-        use_api_proxy=False,
+        cache=Cache(),
         disable_remote_inference=False,
+        remote_inference_description=description,
+        results_description=description,
     )
+
+
+def _edsl_job_description(study: dict[str, Any], persona_doc: dict[str, Any], step: int) -> str:
+    study_name = str(study.get("name") or study.get("title") or study.get("id") or "study")
+    persona = str(persona_doc.get("name") or "persona")
+    return f"UX Test: {study_name} - {persona}, step {step}"
 
 
 def _decision_from_answer(
