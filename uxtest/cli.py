@@ -348,9 +348,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def cmd_init(args: argparse.Namespace) -> None:
-    store_root = Path(args.store).expanduser() if args.store else Path.cwd()
-    if store_root.name == "uxtest_store":
-        store_root = store_root.parent
+    if args.store:
+        store_root = Path(args.store).expanduser()
+        if store_root.name == "uxtest_store":
+            store_root = store_root.parent
+    else:
+        # Mirror `ci`'s auto-init: nest under `data/` when it exists, matching
+        # where `find_store` looks, so init and ci agree on the store location.
+        store_root = default_new_store_root()
     store = Store.init(
         store_root,
         force=args.force,
