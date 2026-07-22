@@ -355,26 +355,27 @@ click intent:
 uv run uxtest humanize-export <study-id> \
   --template task-discovery \
   --screenshots representative \
-  --max-screenshots 8
+  --max-screenshots 8 \
+  --output ./humanize/jobs.ep
 ```
 
-This writes a generated EDSL script in the study analysis directory. The script
-is a dry run by default:
+This writes a model-free EDSL Jobs package and a humanize schema. Inspect the
+package locally first:
 
 ```bash
-uv run python uxtest_store/studies/<study-id>/analysis/humanize_survey.py
+ep inspect ./humanize/jobs.ep
 ```
 
-Launch the human survey only after reviewing the generated questions and CSS:
+Create the human survey only after reviewing the questions and CSS:
 
 ```bash
-uv run python uxtest_store/studies/<study-id>/analysis/humanize_survey.py --launch
+ep humanize create --jobs ./humanize/jobs.ep --scenario_method ordered --schema ./humanize/humanize_schema.json
 ```
 
-The generated script uses EDSL `humanize_schema` with survey-level
-`custom_css`. That CSS currently scales screenshot images with rules such as
+The exported `humanize_schema.json` uses survey-level `custom_css`. That CSS
+currently scales screenshot images with rules such as
 `max-width: min(100%, 760px)` and `max-height: 70vh`. Edit
-`HUMANIZE_SCHEMA["survey"]["custom_css"]` in the generated script if the
+`survey.custom_css` in `humanize_schema.json` if the
 screenshots should be smaller, larger, bordered differently, or spaced
 differently in the human survey.
 

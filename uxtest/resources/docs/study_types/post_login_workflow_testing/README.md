@@ -301,14 +301,15 @@ entry points or form clarity from screenshots:
 uv run uxtest humanize-export <study-id> \
   --template post-login-workflow \
   --screenshots representative \
-  --max-screenshots 8
+  --max-screenshots 8 \
+  --output ./humanize/jobs.ep
 ```
 
 Review and launch the generated survey:
 
 ```bash
-uv run python uxtest_store/studies/<study-id>/analysis/humanize_survey.py
-uv run python uxtest_store/studies/<study-id>/analysis/humanize_survey.py --launch
+ep inspect ./humanize/jobs.ep
+ep humanize create --jobs ./humanize/jobs.ep --scenario_method ordered --schema ./humanize/humanize_schema.json
 ```
 
 Useful human questions include:

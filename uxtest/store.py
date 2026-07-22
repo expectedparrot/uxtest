@@ -146,6 +146,10 @@ class Store:
         return self.path / "studies"
 
     @property
+    def fixtures_path(self) -> Path:
+        return self.path / "fixtures"
+
+    @property
     def locks_path(self) -> Path:
         return self.path / "locks"
 
@@ -169,6 +173,7 @@ class Store:
         store = cls(store_path)
         store.personas_path.mkdir(parents=True, exist_ok=True)
         store.studies_path.mkdir(parents=True, exist_ok=True)
+        store.fixtures_path.mkdir(parents=True, exist_ok=True)
         store.cache_path.mkdir(parents=True, exist_ok=True)
         store.locks_path.mkdir(parents=True, exist_ok=True)
 
@@ -424,6 +429,7 @@ class Store:
         return {
             "store": str(self.path),
             "hostname": socket.gethostname(),
+            "fixtures": sum(1 for child in self.fixtures_path.glob("*/fixture.yaml") if child.is_file()),
             "studies": len(studies),
             "runs": runs,
             "incomplete_runs": incomplete_runs,

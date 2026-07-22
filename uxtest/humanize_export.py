@@ -164,7 +164,7 @@ def export_humanize_survey(
     max_screenshots: int = 8,
     output: Path | None = None,
     survey_name: str | None = None,
-) -> tuple[Path, Path]:
+) -> tuple[Path, Path, Path]:
     if template not in TEMPLATE_QUESTIONS:
         raise StoreError(f"Unsupported humanize template {template!r}.", exit_code=2)
     if max_screenshots < 1:
@@ -173,10 +173,12 @@ def export_humanize_survey(
     study_dir = store.study_dir(study_id)
     study = read_yaml(study_dir / "study.yaml")
     analysis_dir = study_dir / "analysis"
-    output_path = output or analysis_dir / "humanize_survey.py"
+    output_path = output or analysis_dir / "humanize_jobs.ep"
     if not output_path.is_absolute():
-        output_path = (store.root / output_path).resolve()
+        output_path = (Path.cwd() / output_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path = output_path.with_suffix(".manifest.json")
+    schema_path = output_path.with_name("humanize_schema.json")
 
     scenarios = collect_screenshot_scenarios(
         store,
@@ -191,13 +193,9 @@ def export_humanize_survey(
             exit_code=2,
         )
 
-    script = render_humanize_script(
-        study=study,
-        scenarios=scenarios,
-        template=template,
-        survey_name=survey_name or f"{study.get('title') or study_id} Human Validation",
-    )
-    atomic_write_text(output_path, script)
+    jobs = build_humanize_jobs(scenarios=scenarios, template=template)
+    jobs.git.save(output_path)
+    atomic_write_json(schema_path, {"survey": {"custom_css": DEFAULT_HUMANIZE_CSS}})
     atomic_write_json(
         manifest_path,
         {
@@ -207,11 +205,58 @@ def export_humanize_survey(
             "screenshots": screenshots,
             "max_screenshots": max_screenshots,
             "scenario_count": len(scenarios),
-            "script": str(output_path),
+            "jobs": str(output_path),
+            "humanize_schema": str(schema_path),
+            "survey_name": survey_name or f"{study.get('title') or study_id} Human Validation",
+            "scenario_method": "ordered",
+            "inspect_command": f"ep inspect {output_path}",
+            "create_command": (
+                f"ep humanize create --jobs {output_path} --scenario_method ordered "
+                f"--schema {schema_path}"
+            ),
             "scenarios": [scenario.to_manifest() for scenario in scenarios],
         },
     )
-    return output_path, manifest_path
+    return output_path, schema_path, manifest_path
+
+
+def build_humanize_jobs(*, scenarios: list[ScreenshotScenario], template: str):
+    from edsl import FileStore, Scenario, ScenarioList, Survey
+    from edsl.questions import QuestionFreeText, QuestionLinearScale, QuestionMultipleChoice
+
+    scenario_list = ScenarioList(
+        [
+            Scenario(
+                {
+                    **scenario.to_manifest(),
+                    "screenshot": FileStore(str(scenario.screenshot_path)),
+                }
+            )
+            for scenario in scenarios
+        ]
+    )
+    questions = []
+    for name, text in TEMPLATE_QUESTIONS[template]:
+        if name == "confidence":
+            questions.append(
+                QuestionLinearScale(
+                    question_name=name,
+                    question_text=text,
+                    question_options=[1, 2, 3, 4, 5],
+                    option_labels={1: "Not confident", 5: "Very confident"},
+                )
+            )
+        elif name in {"next_click", "target_path"}:
+            questions.append(
+                QuestionMultipleChoice(
+                    question_name=name,
+                    question_text=text,
+                    question_options="{{ scenario.choice_options }}",
+                )
+            )
+        else:
+            questions.append(QuestionFreeText(question_name=name, question_text=text))
+    return Survey(questions).by(scenario_list)
 
 
 def collect_screenshot_scenarios(

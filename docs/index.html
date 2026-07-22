@@ -1,0 +1,2259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="An agent-first tutorial for running synthetic-user UX research with uxtest and Expected Parrot.">
+  <title>Expected Parrot | Agent Guide to uxtest</title>
+  <style>
+    :root{--green:#428a5f;--green-bright:#65ad7e;--forest:#193f2a;--ink:#18201b;--muted:#657069;--paper:#f3f5f3;--panel:#fff;--rule:#dce4de;--soft:#eef7f1;--warm:#fbf8ef;--amber:#d7952c;--code:#17211b;--sidebar:286px;--measure:790px;--serif:Georgia,"Times New Roman",serif;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;--mono:"SFMono-Regular",Consolas,"Liberation Mono",monospace}
+    *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:20px}body{margin:0;overflow-x:hidden;color:var(--ink);background:var(--paper);font:16px/1.7 var(--sans)}body.modal-open{overflow:hidden}
+    #progress{position:fixed;inset:0 auto auto 0;z-index:30;width:0;height:4px;background:#efa93a}
+    nav{position:fixed;inset:0 auto 0 0;z-index:20;width:var(--sidebar);overflow-y:auto;padding:22px;color:#edf8f0;background:var(--forest);font:14px/1.35 var(--sans)}
+    .brand{display:flex;align-items:center;gap:12px;margin-bottom:21px;padding:11px 12px;color:var(--ink);background:#fff;border-radius:9px;text-decoration:none}.brand:hover{background:#f8fbf9}.mark{display:grid;width:50px;height:34px;place-items:center;color:white;background:var(--green);border-radius:50% 50% 45% 45%;font:800 14px/1 var(--serif);transform:rotate(-3deg)}.brand strong{display:block;font-size:14px;line-height:1.15}.brand small{display:block;margin-top:3px;color:var(--muted);font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase}
+    .book-title{margin:0 8px 22px;font:600 20px/1.25 var(--serif)}.toc-toggle{display:none;width:100%;padding:9px 11px;color:#fff;background:#2c6142;border:1px solid #528066;border-radius:6px;text-align:left;font-weight:750}nav .part{margin:20px 8px 5px;color:#9ed2af;font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase}nav>a:not(.brand){display:block;padding:5px 8px;color:#d5e9dc;text-decoration:none;border-radius:6px}nav>a:not(.brand):hover,nav>a.active{color:#fff!important;background:#2c6142}.nav-note{margin:26px 8px 0;color:#aac3b2;font-size:11px}
+    main{min-width:0;margin-left:var(--sidebar)}article,section,.lesson{min-width:0}article{max-width:920px;margin:auto;padding:48px 52px 110px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.025)}header.hero{padding:58px 0 48px;border-bottom:3px solid var(--green)}
+    .eyebrow{color:var(--green);font-size:11px;font-weight:850;letter-spacing:.14em;text-transform:uppercase}h1,h2,h3{font-family:var(--serif);font-weight:600;line-height:1.25}h1{max-width:760px;margin:13px 0 20px;font-size:clamp(42px,6vw,64px);letter-spacing:-.03em}h2{margin:78px 0 23px;padding:12px 0 8px;color:var(--green);font-size:32px;letter-spacing:-.015em;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}h3{margin:39px 0 12px;font-size:23px}.dek{max-width:720px;color:var(--muted);font-size:21px;line-height:1.5}.meta{display:flex;flex-wrap:wrap;gap:10px 24px;margin-top:28px;color:var(--muted);font-size:13px}
+    p,ul,ol,pre,.callout,.flow,.tree,.cards,table{max-width:var(--measure)}a{color:var(--green);text-decoration:none}a:hover{text-decoration:underline}li::marker{color:var(--green)}code{padding:.13em .34em;color:#173c26;background:#edf3ef;border-radius:4px;font: .88em var(--mono)}pre{position:relative;width:100%;max-width:100%;overflow:auto;margin:18px 0 26px;padding:21px 56px 21px 22px;color:#dce8df;background:var(--code);border-radius:8px;font:13px/1.58 var(--mono)}pre code{display:block;width:max-content;min-width:100%;padding:0;color:inherit;background:none}.syntax-html .html-tag{color:#7ed6a0}.syntax-html .html-doctype{color:#efbd6d}.copy{position:absolute;top:10px;right:10px;padding:5px 8px;color:#d7ebdd;background:#314339;border:0;border-radius:5px;font:11px var(--sans);cursor:pointer}.copy:hover{color:#fff;background:var(--green)}
+    .callout{margin:24px 0;padding:16px 20px;background:var(--soft);border-left:3px solid var(--green)}.callout.warn{background:var(--warm);border-color:var(--amber)}.callout strong:first-child{display:block;margin-bottom:3px}.cards{display:grid;grid-template-columns:1fr 1fr;gap:16px}.card{padding:4px 18px 16px 0;border-bottom:1px solid var(--rule)}.card h3{margin:0 0 8px;color:var(--forest);font:700 16px/1.3 var(--sans)}.card p{margin:0;color:var(--muted);font-size:14px}.tag{display:block;margin-bottom:6px;color:var(--green);font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+    .flow{display:flex;align-items:center;gap:7px;margin:25px 0;overflow-x:auto}.step{min-width:120px;padding:13px 10px;text-align:center;color:var(--forest);background:var(--soft);border:1px solid #bdd3c5;border-radius:7px;font-size:12px;font-weight:750}.arrow{color:var(--green);font-size:20px}.tree{margin:20px 0;padding:20px 22px;color:#dce8df;background:#1b2920;border-radius:8px;font:13px/1.65 var(--mono)}.tree .dim{color:#98ad9e}.tree .hot{color:#9bd1ad}table{width:100%;margin:20px 0 28px;border-collapse:collapse;font-size:14px}th,td{padding:10px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--rule)}th{color:#fff;background:var(--green)}tbody tr:nth-child(even){background:#f7f9f7}.kbd{white-space:nowrap;font-family:var(--mono);font-size:12px}.checklist{list-style:none;padding-left:0}.checklist li{position:relative;padding:5px 0 5px 28px}.checklist li:before{position:absolute;left:0;top:8px;width:16px;height:16px;color:#fff;background:var(--green);border-radius:50%;content:"✓";font:700 11px/16px var(--sans);text-align:center}
+    .lesson{margin:42px 0 58px}.lesson-label{color:var(--green);font-size:11px;font-weight:850;letter-spacing:.1em;text-transform:uppercase}.lesson-label b{margin-right:7px}.lesson h3{margin-top:8px}.output{margin:-17px 0 26px;padding:14px 18px;overflow-wrap:anywhere;white-space:pre-wrap;color:#c9d7cd;background:#26342b;border-radius:0 0 8px 8px;font:12px/1.55 var(--mono)}.output:before{display:block;margin-bottom:6px;color:#87b798;content:"CAPTURED OUTPUT";font:800 9px var(--sans);letter-spacing:.12em}.output.excerpt:before{content:"CAPTURED OUTPUT (EXCERPT)"}.output.not-run:before{color:#dfbd78;content:"NOT EXECUTED — OUTPUT CONTRACT"}.artifact{display:grid;grid-template-columns:140px 1fr;gap:15px;align-items:start;max-width:var(--measure);margin:14px 0;padding:4px 0 14px;border-bottom:1px solid var(--rule)}.artifact strong{color:var(--forest);font:700 13px var(--mono)}.artifact p{margin:0;color:var(--muted);font-size:13px}
+    footer{margin-top:90px;padding-top:27px;color:var(--muted);border-top:3px solid var(--green);font-size:13px}.footer-brand{display:flex;align-items:center;gap:10px;margin-bottom:10px}.footer-brand .mark{width:40px;height:28px;font-size:11px}
+    .shots{display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:var(--measure);margin:24px 0 30px}.shot{margin:0}.shot.compact-phone{max-width:360px}.shot img{display:block;width:100%;height:auto;border:1px solid #dce4de}.shot figcaption{margin-top:9px;color:var(--muted);font-size:12px;line-height:1.45}.shot figcaption strong{display:block;margin-bottom:3px;color:var(--ink);font-size:13px}.report-shot{max-width:var(--measure);margin:24px 0 30px}.journey-button{display:block;width:100%;height:330px;padding:12px;overflow:hidden;border:1px solid #dce4de;background:#f3f5f3;cursor:zoom-in}.journey-button img{display:block;width:100%;height:100%;object-fit:contain}.report-shot figcaption{margin:9px 0 1px;color:var(--muted);font-size:13px}.journey-modal{position:fixed;inset:0;z-index:60;display:none;padding:28px;background:rgba(15,24,18,.9)}.journey-modal.open{display:grid;grid-template-rows:auto minmax(0,1fr)}.journey-modal-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;color:#fff;background:var(--forest)}.journey-modal-bar button{padding:7px 11px;color:#fff;border:1px solid #91ad9b;border-radius:5px;background:transparent;cursor:pointer}.journey-scroll{overflow:auto;background:var(--paper)}.journey-scroll img{display:block;width:auto;max-width:none;height:auto}details.plan{max-width:var(--measure);margin:16px 0;border:1px solid var(--rule);background:#fff}details.plan summary{padding:13px 16px;color:var(--forest);background:#f3f8f4;cursor:pointer;font-weight:750}details.plan[open] summary{border-bottom:1px solid var(--rule)}details.plan pre{max-width:none;margin:0;border-radius:0}.plan-note{display:block;margin-top:4px;color:var(--muted);font-size:12px;font-weight:400}
+    @media(max-width:980px){nav{position:static;width:auto;max-height:none}.brand{max-width:280px}main{margin-left:0}article{padding:30px 25px 80px}.toc-toggle{display:block}nav>.part,nav>a:not(.brand),nav>.nav-note{display:none}nav.open>.part{display:block}nav.open>a:not(.brand){display:block}nav.open>.nav-note{display:block}}@media(max-width:650px){.cards,.shots{grid-template-columns:1fr}h1{font-size:42px}h2{font-size:28px}.flow{align-items:stretch;flex-direction:column}.arrow{transform:rotate(90deg);text-align:center}.journey-modal{padding:8px}}
+    @media print{nav,#progress,.copy{display:none!important}main{margin:0}article{max-width:none;padding:0;box-shadow:none}body{background:#fff;font-size:11pt}h2{break-before:page;margin-top:0}pre{white-space:pre-wrap;color:#000;background:#eee;border:1px solid #aaa}.card,.callout,table{break-inside:avoid}}
+  </style>
+</head>
+<body>
+<div id="progress"></div>
+<nav aria-label="Tutorial contents">
+  <a class="brand" href="https://www.expectedparrot.com/" target="_blank" rel="noopener"><span class="mark">EP</span><span><strong>Expected Parrot</strong><small>Open-source research tools</small></span></a>
+  <div class="book-title">Synthetic UX Research<br>with uxtest</div>
+  <button class="toc-toggle" type="button" aria-expanded="false">Show contents</button>
+  <div class="part">Tutorial</div><a href="#getting-started">1. Install uxtest</a><a href="#start">2. What uxtest is for</a><a href="#mobile-page-review">3. Build a first study</a><a href="#northstar-context">4. Plan a larger study</a><a href="#walkthrough">5. Follow it to evidence</a><a href="#features">6. Optional follow-ups</a>
+  <div class="part">Reference</div><a href="#mental-model">7. Mental model</a><a href="#choose">8. Choose a study</a><a href="#fixture">9. Fixture anatomy</a><a href="#study">10. Create a study</a><a href="#authenticated">11. Authenticated flows</a>
+  <div class="part">Interpret</div><a href="#evidence">12. Inspect evidence</a><a href="#outcomes">13. Read outcomes</a><a href="#report">14. Report responsibly</a>
+  <div class="part">Extend</div><a href="#advanced">15. Advanced workflows</a><a href="#regression">16. Regression & CI</a><a href="#debug">17. Debugging</a><a href="#handoff">18. Agent checklist</a>
+  <div class="nav-note">A terminal-first field guide for coding and research agents.</div>
+</nav>
+<main><article>
+  <header class="hero">
+    <div class="eyebrow">Expected Parrot · Agent tutorial</div>
+    <h1>Synthetic UX Research</h1>
+    <p class="dek">How an agent should design, run, inspect, and report a browser-based UX study with <code>uxtest</code>.</p>
+    <div class="meta"><span>Tool: <strong>uxtest</strong></span><span>Browser: <strong>Playwright</strong></span><span>Inference: <strong>EDSL</strong></span><span>Interface: <strong>CLI + files</strong></span></div>
+  </header>
+
+  <section id="getting-started"><h2><span>1.</span> Install uxtest</h2>
+    <p>Install uxtest and its Python dependencies from the repository, then install the Chromium browser used by Playwright:</p>
+    <pre><code>pip install git+https://github.com/expectedparrot/uxtest.git
+python -m playwright install chromium</code></pre>
+    <p>The package installs the tools used in this tutorial: <code>uxtest</code> captures and organizes browser studies, while EDSL provides <code>ep</code> for running image-evaluation jobs. Confirm that they are available and check the browser:</p>
+    <pre><code>uxtest --version
+ep info
+uxtest doctor</code></pre>
+    <p><code>uxtest doctor</code> checks the uxtest package, EDSL import, Chromium launch, and optional report tooling. Fix a failed Chromium check before continuing; without a working browser, uxtest cannot capture the page or its screenshot.</p>
+    <div class="callout"><strong>Working from this source checkout?</strong>Run <code>uv sync</code>, then prefix uxtest commands with <code>uv run</code>. The examples below use the installed <code>uxtest</code> command for readability.</div>
+  </section>
+
+  <section id="start"><h2><span>2.</span> What uxtest is for</h2>
+    <p>A web team often wants to know how a person might approach a page before it has time or budget for a full usability study. Is the purpose of the page apparent? Does a promising button lead where its label suggests? Can a visitor find product information without accidentally entering a signup flow? Does the mobile version create a different path from the desktop version?</p>
+    <p><code>uxtest</code> turns questions like these into browser experiments. You give it a website, a task, one or more synthetic personas, and a stopping condition. It opens the site with Playwright, lets a scripted or EDSL-backed visitor decide what to do, and records the journey step by step. The useful product is not simply a pass/fail score. It is an inspectable chain of evidence: what was visible, what the visitor inferred, what action it attempted, what the browser did, and what appeared next.</p>
+  </section>
+
+  <section id="mobile-page-review"><h2><span>3.</span> Build a minimal issue-finding study</h2>
+    <p>Before the larger walkthrough, here is the smallest useful study. We will create one HTML page with a long status line that cannot wrap and is clipped by its card. uxtest will capture the page at an iPhone viewport. It will then package that screenshot as an EDSL <code>FileStore</code> in <code>jobs.ep</code>; <code>ep</code> will run the image evaluation and save <code>results.ep</code>; finally, uxtest will ingest the structured finding.</p>
+    <h3>Create the project directory</h3>
+    <pre><code>mkdir mobile-page-study
+cd mobile-page-study
+uxtest init</code></pre>
+    <p><code>mkdir</code> creates an isolated directory for this tutorial, and <code>cd</code> makes it the current working directory. <code>uxtest init</code> creates <code>uxtest_store/</code>, the project-local store for fixture plans, personas, studies, runs, screenshots, EDSL packages, and reports.</p>
+    <p>The command returns a JSON envelope. <code>data.stdout</code> identifies the new store:</p>
+    <div class="output">{
+  "artifacts": [],
+  "command": "init",
+  "data": {"stdout": "Initialized /path/to/mobile-page-study/uxtest_store"},
+  "error": null,
+  "ok": true,
+  "schema_version": 1
+}</div>
+
+    <h3>Build the fixture plan</h3>
+    <p>A fixture is the repeatable recipe for a study: the target URL, task, persona, page variant, browser driver, and device. Create the initial plan:</p>
+    <pre><code>uxtest fixture new mobile-page-review \
+  --url-template 'http://{host}:{port}/index.html' \
+  --task 'Review this page on a phone and identify any visible interface problems. Explain exactly what is wrong and where it occurs.' \
+  --success-criteria 'The visitor has inspected the page.' \
+  --persona mobile-first --variant broken \
+  --driver heuristic --device iphone</code></pre>
+    <p>Each part has a specific job:</p>
+    <ul>
+      <li><code>mobile-page-review</code> is a neutral fixture id used by later commands. It describes the study’s scope, not an expected finding.</li>
+      <li><code>--url-template</code> identifies the page; uxtest fills in <code>{host}</code> and <code>{port}</code> from the server configuration.</li>
+      <li><code>--task</code> says what to inspect and what kind of answer is needed.</li>
+      <li><code>--success-criteria</code> describes when the capture has enough evidence.</li>
+      <li><code>--persona mobile-first</code> associates the run with a phone-oriented visitor profile.</li>
+      <li><code>--variant broken</code> names this page version and becomes part of the generated study id.</li>
+      <li><code>--driver heuristic</code> captures browser evidence without using EDSL for navigation. The dedicated image job performs the model evaluation later.</li>
+      <li><code>--device iphone</code> selects the mobile viewport, touch behavior, and mobile user agent.</li>
+    </ul>
+    <p>This writes <code>uxtest_store/fixtures/mobile-page-review/fixture.yaml</code>. Add the two remaining settings:</p>
+    <pre><code>uxtest fixture set mobile-page-review max_steps 1
+uxtest fixture set mobile-page-review server \
+  '{"host":"127.0.0.1","port":8782,"command":["python","-m","http.server","{port}","--bind","{host}"]}' \
+  --json-value</code></pre>
+    <p><code>max_steps 1</code> requests one observed browser state—the initial mobile page is all this test needs. The <code>server</code> object tells uxtest to start Python’s static server on localhost before the run and stop it afterward. <code>--json-value</code> tells the CLI to store the value as an object rather than a string.</p>
+    <p>Run <code>uxtest fixture show mobile-page-review</code> to inspect the complete generated plan.</p>
+
+    <h3>Create the page under test</h3>
+    <p>Create <code>uxtest_store/fixtures/mobile-page-review/index.html</code>. It sits beside <code>fixture.yaml</code> because the configured static server runs from that fixture directory:</p>
+    <div class="callout warn"><strong>This page is deliberately broken</strong>The card hides anything that extends beyond its edge with <code>overflow: hidden</code>. Inside it, the status line is forced to be <code>620px</code> wide and forbidden from wrapping with <code>white-space: nowrap</code>. On a 390px-wide phone viewport, the sentence cannot fit, cannot move to a second line, and is cut off. We are planting an obvious visual defect so we can verify that the screenshot-evaluation workflow detects it.</div>
+    <pre><code class="syntax-html">&lt;!doctype html&gt;
+&lt;html lang="en"&gt;
+&lt;head&gt;
+  &lt;meta charset="utf-8"&gt;
+  &lt;meta name="viewport" content="width=device-width, initial-scale=1"&gt;
+  &lt;title&gt;Acme account&lt;/title&gt;
+  &lt;style&gt;
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f5f6f8; font: 16px/1.45 system-ui, sans-serif; }
+    header { padding: 18px 20px; background: #29235c; color: white; font-weight: 700; }
+    main { margin: 36px auto; padding: 0 18px; }
+    .card { overflow: hidden; padding: 22px; border: 1px solid #d9dde3; border-radius: 12px; background: white; }
+    .status { width: 620px; overflow: hidden; white-space: nowrap; color: #145c3a; font-weight: 650; }
+    button { margin-top: 24px; padding: 10px 14px; background: #29235c; color: white; }
+  &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;header&gt;Acme Cloud&lt;/header&gt;
+  &lt;main&gt;&lt;section class="card"&gt;
+    &lt;h1&gt;Your workspace is ready&lt;/h1&gt;
+    &lt;p&gt;Review the account details below before continuing.&lt;/p&gt;
+    &lt;strong&gt;Setup status&lt;/strong&gt;
+    &lt;div class="status"&gt;Connected to the North America production workspace with automatic weekly backups enabled&lt;/div&gt;
+    &lt;button&gt;Continue&lt;/button&gt;
+  &lt;/section&gt;&lt;/main&gt;
+&lt;/body&gt;
+&lt;/html&gt;</code></pre>
+    <h3>Open the page and capture browser evidence</h3>
+    <p>Now ask uxtest to run the fixture. uxtest starts the local web server, then uses Playwright—a tool that controls a real Chromium browser—to open <code>index.html</code> with the iPhone-sized viewport specified in the plan. Playwright takes a screenshot of what the browser actually renders, including content that is clipped, overlapping, or outside its container.</p>
+    <p>The <code>heuristic</code> driver keeps this capture stage deterministic. It does not ask an AI model whether the page looks good or bad. Its job here is to visit the page and preserve the evidence. The visual judgment happens in the EDSL image-evaluation job in the next step.</p>
+    <pre><code>uxtest fixture run mobile-page-review</code></pre>
+    <p>The relevant fields from the real command response are shown below. The date and four-character run suffix will differ on a new run:</p>
+    <div class="output">{
+  "artifacts": [
+    "uxtest_store/studies/2026-07-22-mobile-page-review-broken/runs/run-001-mobile-first-a8c8",
+    "uxtest_store/studies/2026-07-22-mobile-page-review-broken/analysis/findings.json",
+    "uxtest_store/studies/2026-07-22-mobile-page-review-broken/analysis/scores.json",
+    "uxtest_store/studies/2026-07-22-mobile-page-review-broken/analysis/report.html",
+    "uxtest_store/studies/2026-07-22-mobile-page-review-broken/analysis/log.html",
+    "uxtest_store/studies/2026-07-22-mobile-page-review-broken/analysis/animations/index.html",
+    "uxtest_store/studies/2026-07-22-mobile-page-review-broken/analysis/eval.json",
+    "uxtest_store/studies/2026-07-22-mobile-page-review-broken/analysis/eval.html",
+    "uxtest_store/comparisons/mobile-page-review.html"
+  ],
+  "command": "fixture run",
+  "data": {
+    "stdout": "uxtest_store/studies/2026-07-22-mobile-page-review-broken/runs/run-001-mobile-first-a8c8\n...analysis and report paths listed above..."
+  },
+  "error": null,
+  "messages": [],
+  "meta": {"uxtest_version": "0.1.0"},
+  "ok": true,
+  "schema_version": 1,
+  "stderr": null
+}</div>
+    <p><code>ok: true</code> means the browser capture completed. The first artifact is the run directory. Inside it, <code>screenshots/step-001.png</code> is the image Playwright captured, <code>trace.jsonl</code> records what the browser observed and did, and <code>meta.json</code> records the viewport, URL, persona, and outcome. The remaining paths are automatically generated summaries and reports. For this lesson, the screenshot is the important input to the next stage.</p>
+    <figure class="shot compact-phone"><a href="assets/mobile-page-review.png" target="_blank"><img src="assets/mobile-page-review.png" alt="Mobile screenshot with the setup status text visibly clipped at the right edge" loading="lazy"></a><figcaption><strong>Actual Playwright capture</strong>The green setup-status line continues past the card and is visibly cut off. Click to inspect the full image.</figcaption></figure>
+    <h3>Give the screenshot a durable reference</h3>
+    <p>At this point uxtest has collected evidence but has not asked EDSL to interpret the image. List the available captures:</p>
+    <pre><code>uxtest image-review captures</code></pre>
+    <div class="output">{
+  "command": "image-review captures",
+  "data": [{
+    "capture_id": "7d0a7a89c33496302b194d63b0276a1956f4046522dd14c836e455f89b0dfcc3",
+    "run_id": "run-001-mobile-first-a8c8",
+    "screenshot": ".../screenshots/step-001.png",
+    "study_id": "2026-07-22-mobile-page-review-broken"
+  }],
+  "error": null,
+  "ok": true,
+  "schema_version": 1
+}</div>
+    <p><code>capture_id</code> is a SHA-256 reference derived from the screenshot bytes and its study/run identity. Like a Git commit, its first several characters are usually enough to identify it. This gives an agent one stable value to carry forward instead of parsing and recombining a study id, run id, and file path.</p>
+    <h3>Package that capture for EDSL</h3>
+    <p><code>prepare</code> does <em>not</em> run a model. It resolves the capture reference and writes a portable EDSL job containing the image, review question, persona, and model configuration:</p>
+    <pre><code>uxtest image-review prepare --capture 7d0a7a8</code></pre>
+    <p>Abbreviated hashes must contain at least seven characters and must resolve unambiguously. For a quick one-off workflow, <code>uxtest image-review prepare --latest</code> remains available. Explicit study and run ids are also accepted for compatibility.</p>
+    <p>The following is the structured portion of the actual response; absolute temporary paths are shortened to <code>...</code>:</p>
+    <div class="output">{
+  "command": "image-review prepare",
+  "data": {
+    "jobs": ".../analysis/image_review/jobs.ep",
+    "model": "gpt-4o",
+    "next_command": "ep run .../analysis/image_review/jobs.ep --output .../analysis/image_review/results.ep",
+    "results": ".../analysis/image_review/results.ep",
+    "runs": [{"capture_id": "7d0a7a89c33496302b194d63b0276a1956f4046522dd14c836e455f89b0dfcc3", "run_id": "run-001-mobile-first-a8c8", "screenshot": ".../screenshots/step-001.png"}],
+    "schema_version": 1,
+    "study_id": "2026-07-22-mobile-page-review-broken"
+  },
+  "error": null,
+  "ok": true,
+  "schema_version": 1
+}</div>
+    <p>The package contains the question, model, reviewer, run metadata, and screenshot itself—not merely the screenshot path. Although <code>next_command</code> exposes the underlying EDSL command for inspection or custom execution, an agent does not need to copy its paths. Run the complete prepare → EDSL → ingest workflow with the same capture reference:</p>
+    <pre><code>uxtest image-review run --capture 7d0a7a8</code></pre>
+    <p>uxtest resolves the capture, writes <code>jobs.ep</code>, passes its exact path and the matching <code>results.ep</code> destination to <code>ep run</code>, waits for EDSL, then ingests the result. The packages remain in the study for inspection, but path plumbing is not the caller’s responsibility.</p>
+    <h3>What EDSL found</h3>
+    <div class="callout"><strong>High severity: Text Overflow</strong>EDSL reported that “The text ‘Connected to the North America production’ is truncated and doesn’t fit within its container.” That is the deliberate defect visible in the screenshot: the green setup-status sentence ends abruptly at the card’s right edge.</div>
+    <p>The result identifies more than a generic “mobile layout problem.” It names the affected content, describes the visible failure, assigns a severity, and links the finding to <code>run-001-mobile-first-a8c8</code> and its screenshot. Those references let an agent or reviewer return to the exact browser evidence behind the finding.</p>
+    <p>The complete structured finding appears in <code>data.findings</code>. Absolute path prefixes are shortened below:</p>
+    <div class="output">{
+  "command": "image-review run",
+  "data": {
+    "capture_id": "7d0a7a89c33496302b194d63b0276a1956f4046522dd14c836e455f89b0dfcc3",
+    "findings": [{
+      "description": "The text 'Connected to the North America production' is truncated and doesn't fit within its container.",
+      "run_id": "run-001-mobile-first-a8c8",
+      "screenshot": ".../screenshots/step-001.png",
+      "severity": "high",
+      "title": "Text Overflow"
+    }],
+    "jobs": ".../analysis/image_review/jobs.ep",
+    "results": ".../analysis/image_review/results.ep",
+    "run_id": "run-001-mobile-first-a8c8",
+    "study_id": "2026-07-22-mobile-page-review-broken"
+  },
+  "error": null,
+  "ok": true,
+  "schema_version": 1
+}</div>
+    <h3>What we learned from this study</h3>
+    <p>The workflow successfully recovered the defect we planted in the page. Playwright captured the clipped rendering rather than merely reading the complete sentence from the HTML. EDSL evaluated those pixels and recognized that the visible sentence was truncated. uxtest then preserved the model’s finding alongside the capture that supports it.</p>
+    <p>This is the core issue-finding loop: define the page and viewport, capture what a browser actually displays, evaluate the screenshot, and retain a structured finding tied to its evidence. The stored files preserve the separation between stages: <code>step-001.png</code> is the browser evidence, <code>jobs.ep</code> is the review specification, <code>results.ep</code> is EDSL’s response, and <code>analysis/image_review/findings.json</code> is the normalized result used by uxtest.</p>
+  </section>
+
+  <section id="northstar-context"><h2><span>4.</span> The larger walkthrough</h2>
+    <p>The Acme example asked one visual question about one captured browser state. Northstar extends the same workflow into a <strong>multi-step assessment</strong>: the visitor can click through several pages, each step produces a screenshot and trace event, and we compare the complete journey across two versions of the site.</p>
+    <p>The principles do not change:</p>
+    <ul>
+      <li>Define the task, viewport, variants, and stopping rule before opening the browser.</li>
+      <li>Use Playwright to capture what the browser displayed and what each action caused.</li>
+      <li>Keep screenshots and trace events as the evidence; treat reports as generated views of that evidence.</li>
+      <li>Use uxtest ids and capture hashes instead of constructing storage paths when a command accepts a reference.</li>
+      <li>Keep model execution explicit. A scripted run establishes the controlled baseline; the EDSL version later replaces scripted choices with model-selected actions.</li>
+    </ul>
+    <p>The new element is sequence. A single screenshot can reveal clipping, but it cannot tell us that a plausible “View examples” click eventually leads to login or that a Docs click repeatedly fails to navigate. For that, we need the ordered chain of screenshots, actions, URLs, and browser outcomes.</p>
+    <h3>The question in the next study</h3>
+    <p>We will study a fictional B2B product page called Northstar. Imagine that the product team is worried that visitors who want to learn about the product are being pushed into account creation too soon. The team has made a revised version with clearer product links and wants an inexpensive first check before recruiting people.</p>
+    <p>The bundled example therefore contains two versions of the same mobile page. The <strong>flawed version</strong> uses generic actions such as “Get started,” contains links that do not visibly advance, and can lead a curious visitor toward login. The <strong>clear version</strong> uses more specific product-learning links. We will ask the same task of both pages: decide which product area to explore and identify anything confusing.</p>
+    <h3>Why begin with a scripted visitor?</h3>
+    <p>We first run a deterministic path whose expected behavior is already known. This verifies that the local site, browser actions, screenshots, analysis, and regression rules are wired together correctly. Once that baseline works, we repeat the study with EDSL-backed personas that choose their own actions. Keeping the page and task fixed makes it easier to understand what the EDSL layer adds.</p>
+    <h3>What this can teach us</h3>
+    <p>If several visitors interpret a vague button the same way and the button repeatedly takes them somewhere unhelpful, uxtest preserves the traces and screenshots needed to identify the pattern, understand its cause, and test a design change.</p>
+    <p>By the end, you will know how a study is specified, how uxtest executes it, which files contain primary evidence, how to distinguish interface behavior from agent behavior, and how to turn a finding into a cautious next step.</p>
+  </section>
+
+  <section id="walkthrough"><h2><span>5.</span> Following one study from question to evidence</h2>
+    <p>The following steps are one continuous investigation, not a tour of unrelated commands. They follow the same order as the first study: create a store, define and inspect the plan, let Playwright collect evidence, use stable references to inspect it, and then interpret the result. Commands assume an installed package; in this source repository, substitute <code>uv run uxtest</code> for <code>uxtest</code>.</p>
+
+    <div class="lesson"><div class="lesson-label"><b>1</b> Prepare</div><h3>Check the browser stack</h3>
+      <p><strong>What we are doing and why.</strong> Installation was handled at the start of the guide. Here we create a separate project directory and store for the Northstar assessment, then recheck the browser stack before collecting a longer trace. A missing browser is an environment failure, not a finding.</p>
+<pre><code>mkdir northstar-uxtest
+cd northstar-uxtest
+uxtest init
+uxtest doctor</code></pre>
+      <div class="output">Initialized /private/tmp/uxtest-guide.Z3F1ld/uxtest_store
+ok      uxtest: version 0.1.0
+ok      edsl: importable from .../site-packages/edsl
+ok      playwright chromium: browser launches
+ok      pandoc: /opt/homebrew/bin/pandoc</div>
+      <p>This transcript was captured from the tutorial run. The temporary directory and installed EDSL/pandoc paths will differ on another machine.</p>
+      <p><code>mkdir</code> and <code>cd</code> isolate this study from the earlier Acme files. <code>uxtest init</code> creates the new <code>uxtest_store/</code>. <code>doctor</code> performs read-only dependency checks; it does not run a study or call a model.</p>
+      <p><strong>What to learn from the output.</strong> Chromium is required to produce browser traces. EDSL is required only for the autonomous persona study later in the tutorial. Pandoc is optional until you request HTML or PDF narrative reports. If Chromium is missing, run <code>python -m playwright install chromium</code>.</p>
+    </div>
+
+    <div class="lesson"><div class="lesson-label"><b>2</b> Acquire</div><h3>Copy the complete example, not just its YAML</h3>
+      <p><strong>What we are doing and why.</strong> A uxtest fixture describes an experiment, but this particular experiment also owns its target website. We copy the entire example so the test plan, known-flaw definitions, local web server, and page assets remain a reproducible unit.</p>
+      <pre><code>uxtest examples copy ./northstar --name saas
+cd northstar
+uxtest fixture register . --name northstar
+uxtest fixture show northstar
+uxtest fixture validate northstar
+ls</code></pre>
+      <div class="output excerpt">/private/tmp/uxtest-guide.Z3F1ld/northstar
+uxtest_store/fixtures/northstar/fixture.yaml
+id: northstar
+name: Northstar SaaS Fixture
+comparison_title: Northstar SaaS Fixture Regression
+comparison_output: northstar-saas-fixture-regression.html
+server:
+  host: 127.0.0.1
+  port: 8776
+  command: [python, ./server.py, --host, '{host}', --port, '{port}']
+url_template: http://{host}:{port}/?variant={variant}
+study_title: Northstar SaaS Fixture ({variant})
+task: You are evaluating Northstar, a B2B research platform. ...
+personas: [mobile-first]
+driver: scripted
+device: iphone
+max_steps: 6
+expected_flaws: expected_flaws.yaml
+overrides:
+  model: gpt-4o
+variants:
+- name: flawed
+- name: clear
+Fixture 'northstar' is valid: uxtest_store/fixtures/northstar/fixture.yaml
+expected_flaws.yaml  regression-edsl.yaml  regression.yaml  server.py  static</div>
+      <p>The YAML above is shortened only where the following expandable plan prints the full value. All paths, field names, and command messages come from the captured run.</p>
+      <p>The copied directory contains two experiment plans. <code>regression.yaml</code> uses a scripted driver, so it is the deterministic baseline. <code>regression-edsl.yaml</code> asks three EDSL personas to make autonomous choices. <code>expected_flaws.yaml</code> states which behaviors should occur only in the flawed page. The remaining files implement the local site.</p>
+      <p>Here is what each command contributes. <code>examples copy</code> copies the complete Northstar project to the explicit path <code>./northstar</code>; the path is necessary because these are editable source files, not a stored object reference. <code>cd northstar</code> moves into that project while uxtest continues to find the store in its parent directory. <code>fixture register</code> assigns the copied plan the stable name <code>northstar</code>. From then on, commands use that name instead of a YAML path. <code>fixture show</code> returns the parsed plan, and <code>fixture validate</code> checks required fields without launching Chromium.</p>
+      <p><code>fixture register</code> copies the plan and its companion server, expected-flaw definitions, and static files into <code>uxtest_store/fixtures/northstar/</code>. From this point onward, the fixture has a stable id instead of depending on a remembered YAML path.</p>
+      <p><strong>What to learn from this step.</strong> uxtest does not hide the research design in an opaque service. The plan and target can be versioned together, reviewed with <code>fixture show</code>, validated without running, and rerun later.</p>
+    </div>
+
+    <div class="lesson"><div class="lesson-label"><b>3</b> Predict</div><h3>Read the research design before running it</h3>
+      <p><strong>What we are doing and why.</strong> Before generating evidence, we inspect the assumptions that will shape it. The task tells the visitor what goal to pursue. The persona affects how the visitor approaches that goal. The device controls what is visible. The step limit determines how long the attempt may continue. The variant list says which experiences will be compared.</p>
+      <p>The complete fixture is shown below so you can see exactly what sets up the exploration. Expand each file. Notice that the fixture describes behavior and execution; it does not contain a prewritten conclusion.</p>
+      <details class="plan" open><summary><code>regression.yaml</code><span class="plan-note">Deterministic baseline: target, task, persona, browser, execution, analysis, and variants.</span></summary><pre><code>id: northstar-saas
+name: Northstar SaaS Fixture
+comparison_title: Northstar SaaS Fixture Regression
+comparison_output: northstar-saas-fixture-regression.html
+server:
+  host: 127.0.0.1
+  port: 8776
+  command:
+    - python
+    - ./server.py
+    - --host
+    - "{host}"
+    - --port
+    - "{port}"
+url_template: http://{host}:{port}/?variant={variant}
+study_title: Northstar SaaS Fixture ({variant})
+task: &gt;
+  You are evaluating Northstar, a B2B research platform. Figure out which
+  product area you would explore next and identify anything confusing.
+success_criteria: The product areas, docs route, or quickstart route have been inspected.
+personas:
+  - mobile-first
+runs_per_persona: 1
+driver: scripted
+device: iphone
+max_steps: 6
+max_concurrent_runs: 1
+keep_runs: 3
+analysis_driver: local
+animation_delay: 250
+animation_max_width: 520
+expected_flaws: expected_flaws.yaml
+variants:
+  - name: flawed
+  - name: clear</code></pre></details>
+      <details class="plan"><summary><code>expected_flaws.yaml</code><span class="plan-note">Named hypotheses for the flawed variant and a positive check for the clear variant.</span></summary><pre><code>flaws:
+  - id: login_detour
+    expected_in: flawed
+    absent_in: clear
+    description: Exploratory product-learning actions lead users into login.
+  - id: dead_docs_link
+    expected_in: flawed
+    absent_in: clear
+    description: Docs and pricing links acknowledge clicks without navigating.
+  - id: generic_cta_confusion
+    expected_in: flawed
+    absent_in: clear
+    description: Generic CTAs such as Open example, Continue, and Get started mislead users.
+  - id: repeated_non_navigation
+    expected_in: flawed
+    absent_in: clear
+    description: Users repeat the same non-navigating action while trying to learn more.
+checks:
+  - id: first_click_clear_explores_products
+    type: first_click
+    expected_in: clear
+    action_contains: explore products
+    final_url_contains: /designer
+    description: Clear variant should route the first product-learning click
+      into product detail, not auth.</code></pre></details>
+      <details class="plan"><summary><code>regression-edsl.yaml</code><span class="plan-note">The exploratory version: three personas make their own browser decisions through EDSL.</span></summary><pre><code>id: northstar-saas-edsl
+name: Northstar SaaS EDSL Fixture
+mode: edsl-personas
+comparison_title: Northstar SaaS EDSL Persona Regression
+comparison_output: northstar-saas-edsl-regression.html
+server:
+  host: 127.0.0.1
+  port: 8776
+  command: [python, ./server.py, --host, "{host}", --port, "{port}"]
+url_template: http://{host}:{port}/?variant={variant}
+study_title: Northstar SaaS EDSL ({variant})
+task: &gt;
+  You are evaluating Expected Parrot's Northstar-style product page as a
+  potential customer. Figure out which product or resource you would click next,
+  and call out anything confusing or misleading as you try to learn what the
+  product does.
+success_criteria: The persona has inspected at least one product area or resource and can explain what they would do next.
+personas:
+  - mobile-first
+  - low-confidence
+  - price-sensitive
+runs_per_persona: 1
+driver: edsl
+device: iphone
+max_steps: 6
+max_concurrent_runs: 2
+keep_runs: 6
+analysis_driver: local
+animation_delay: 250
+animation_max_width: 520
+expected_flaws: expected_flaws.yaml
+eval_policy: threshold
+minimum_recovered_expected: 1
+overrides:
+  model: gpt-4o
+variants:
+  - name: flawed
+  - name: clear</code></pre></details>
+      <p><strong>What the plan means.</strong> The task is deliberately open enough to permit navigation choices, but bounded enough that we can recognize progress. Success means the visitor has inspected a product, documentation, or quickstart route. The expected result is not merely “flawed loses.” It is specific: the clear page’s first product-learning click should reach <code>/designer</code>, while the flawed page may expose login detours, dead links, generic calls to action, or repeated non-navigation.</p>
+      <div class="callout"><strong>Two things are being shown</strong><code>uxtest fixture show northstar</code> displays the reusable experiment plan before execution. After it creates studies, <code>uxtest show &lt;study-id&gt; --json</code> displays a materialized study with its resolved variant URL and status.</div>
+      <div class="callout warn"><strong>Agent habit</strong>Write down the expected contrast before seeing results. Otherwise it is too easy to retrofit a plausible story to whatever the model did.</div>
+    </div>
+
+    <div class="lesson"><div class="lesson-label"><b>4</b> Execute</div><h3>Run both variants with one command</h3>
+      <p><strong>What we are doing and why.</strong> We now execute the deterministic baseline. uxtest will apply the same research task, mobile viewport, step budget, analysis, and evaluation rules to both page variants. Holding those conditions constant makes the page variant the meaningful difference.</p>
+      <pre><code>uxtest fixture run northstar</code></pre>
+      <p>The fixture name <code>northstar</code> is the registered reference from step 2. No YAML or server path is needed. This one command starts the fixture’s server, creates one study for each variant, drives both browser journeys, records every step, analyzes them, and creates the comparison.</p>
+      <details class="plan"><summary>Captured output: generated artifacts<span class="plan-note">This is the artifact list from the JSON envelope. Run ids contain random suffixes and will differ.</span></summary><div class="output excerpt">uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/runs/run-001-mobile-first-96f1
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/findings.json
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/scores.json
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/report.html
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/log.html
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/animations/index.html
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/eval.json
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/eval.html
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-clear/runs/run-001-mobile-first-904b
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-clear/analysis/findings.json
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-clear/analysis/scores.json
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-clear/analysis/report.html
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-clear/analysis/log.html
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-clear/analysis/animations/index.html
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-clear/analysis/eval.json
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-clear/analysis/eval.html
+uxtest_store/comparisons/northstar-saas-fixture-regression.html</div></details>
+      <p>The fixture runner launches the server on port 8776, materializes one study per variant, opens an iPhone-sized browser, runs the scripted visitor, captures each step, analyzes the traces, evaluates the named flaws, builds animations, and writes a comparison. “Scripted” means the choices are predetermined for repeatability; Playwright still performs the actions against the real page.</p>
+      <p>The paths in <code>artifacts</code> are outputs, not inputs the agent must reconstruct. The two <code>runs/...</code> entries identify the primary evidence directories. The <code>analysis/...</code> entries are generated views for each variant, and the final <code>comparisons/...</code> entry is the side-by-side report. Later commands use study and run ids; direct paths are only needed when opening a generated HTML file or inspecting a raw evidence file.</p>
+      <div class="shots">
+        <figure class="shot"><a href="assets/northstar-flawed-mobile.png" target="_blank"><img src="assets/northstar-flawed-mobile.png" alt="Flawed Northstar mobile page with generic Get started and View examples actions" loading="lazy"></a><figcaption><strong>Flawed mobile variant</strong>The generic “Get started” and “View examples” actions are plausible choices, but can send a product-learning visitor down an unhelpful path. Click the capture to inspect it full size.</figcaption></figure>
+        <figure class="shot"><a href="assets/northstar-clear-mobile.png" target="_blank"><img src="assets/northstar-clear-mobile.png" alt="Clear Northstar mobile page with more specific product navigation" loading="lazy"></a><figcaption><strong>Clear mobile variant</strong>The revised labels make the available product-learning route more explicit. Both captures use the fixture’s iPhone-sized viewport. Click the capture to inspect it full size.</figcaption></figure>
+      </div>
+      <p><strong>What you are seeing.</strong> These are the actual pages the browser receives. Compare the action labels, not just the visual polish. A visitor trying to learn about the product must infer what “Get started” will do in the flawed version; the clear version gives that visitor a more explicit route. The screenshots alone do not prove friction. They provide the visual context needed to judge whether the later browser action was reasonable.</p>
+      <p>You do not need to start the server separately. On exit—even a failed check—the fixture runner owns server cleanup.</p>
+    </div>
+
+    <div class="lesson"><div class="lesson-label"><b>5</b> Locate</div><h3>Find what the run produced</h3>
+      <p><strong>What we are doing and why.</strong> We pause before reading the report to understand the evidence model. uxtest stores the study definition separately from individual runs. Each run contains raw trace events and screenshots; analysis and reports are derived from them. If a summary ever seems wrong, the run is where we check it.</p>
+      <p>First, ask for a project-level count:</p>
+      <pre><code>uxtest --human status</code></pre>
+      <div class="output">Store: /private/tmp/uxtest-guide.Z3F1ld/uxtest_store
+Fixtures: 1
+Studies: 2
+Runs: 2
+Incomplete runs: 0</div>
+      <p>This confirms that one registered fixture produced two studies—one per variant—and one run per study. “Incomplete runs: 0” means neither browser session was left without a terminal outcome.</p>
+
+      <p>Next, list the studies to obtain their generated ids. Unlike the explicitly human-formatted status above, this uses uxtest's default agent interface:</p>
+      <pre><code>uxtest study list</code></pre>
+      <div class="output">{
+  "artifacts": [],
+  "command": "study list",
+  "data": [
+    {
+      "id": "2026-07-22-northstar-saas-fixture-clear",
+      "personas": ["mobile-first"],
+      "status": "complete",
+      "task": "You are evaluating Northstar, a B2B research platform. Figure out which product area you would explore next and identify anything confusing.\n",
+      "title": "Northstar SaaS Fixture (clear)",
+      "url": "http://127.0.0.1:8776/?variant=clear"
+    },
+    {
+      "id": "2026-07-22-northstar-saas-fixture-flawed",
+      "personas": ["mobile-first"],
+      "status": "complete",
+      "task": "You are evaluating Northstar, a B2B research platform. Figure out which product area you would explore next and identify anything confusing.\n",
+      "title": "Northstar SaaS Fixture (flawed)",
+      "url": "http://127.0.0.1:8776/?variant=flawed"
+    }
+  ],
+  "error": null,
+  "messages": [],
+  "meta": {"uxtest_version": "0.1.0"},
+  "ok": true,
+  "schema_version": 1,
+  "stderr": null
+}</div>
+      <p>The real response includes the remaining study fields, such as creation time, success criteria, tags, and the source path. The key point is that <code>data</code> is an array—not prose an agent must split into columns. An agent selects the object whose tags contain <code>variant-flawed</code> or <code>variant-clear</code> and carries its <code>id</code> into the next command. It does not parse an artifact path to recover the id. The date portion will reflect the day you run the fixture. The status <code>complete</code> describes browser execution; it does not by itself say that the task succeeded.</p>
+
+      <p>Use one of those ids for a compact human-readable summary:</p>
+      <pre><code>uxtest --human show 2026-07-22-northstar-saas-fixture-flawed</code></pre>
+      <div class="output">Study: 2026-07-22-northstar-saas-fixture-flawed<br>Title: Northstar SaaS Fixture (flawed)<br>Status: complete<br>URL: http://127.0.0.1:8776/?variant=flawed<br>Personas: mobile-first</div>
+      <p>This is a quick identity check: it confirms that we selected the flawed URL and the intended persona. It does not include run events.</p>
+
+      <p>Finally, request the complete materialized study record as JSON:</p>
+      <pre><code>uxtest show 2026-07-22-northstar-saas-fixture-flawed</code></pre>
+      <div class="output">{
+  "artifacts": [],
+  "command": "show",
+  "data": {
+    "created_at": "2026-07-22T12:36:26Z",
+    "id": "2026-07-22-northstar-saas-fixture-flawed",
+    "personas": ["mobile-first"],
+    "runs_per_persona": 1,
+    "schema_version": 1,
+    "status": "complete",
+    "success_criteria": "The product areas, docs route, or quickstart route have been inspected.",
+    "tags": [
+      "device-iphone",
+      "driver-scripted",
+      "fixture-northstar",
+      "uxtest-fixture",
+      "variant-flawed"
+    ],
+    "task": "You are evaluating Northstar, a B2B research platform. Figure out which product area you would explore next and identify anything confusing.\n",
+    "title": "Northstar SaaS Fixture (flawed)",
+    "url": "http://127.0.0.1:8776/?variant=flawed"
+  },
+  "error": null,
+  "messages": [],
+  "meta": {"uxtest_version": "0.1.0"},
+  "ok": true,
+  "schema_version": 1,
+  "stderr": null
+}</div>
+      <p>The envelope is stable across uxtest commands. Here, <code>data</code> contains the structured study record. Commands that write files populate <code>artifacts</code>; failures set <code>ok</code> false and populate <code>error</code>. Within the study, the <code>{variant}</code> placeholder has resolved to <code>flawed</code>, and fixture-level driver and device settings have become tags.</p>
+      <p>The store now contains a reusable <code>mobile-first</code> persona and one study directory for each variant. Inside each study, <code>study.yaml</code> is the resolved plan, <code>runs/&lt;run-id&gt;/trace.jsonl</code> and its screenshots are the primary evidence, and <code>analysis/</code> contains derived findings, scores, and reports. The side-by-side result is written under <code>uxtest_store/comparisons/</code>.</p>
+      <p><code>uxtest show &lt;study-id&gt;</code> returns the full materialized plan in the standard envelope—the resolved URL, task, personas, and status after the fixture has created it. Use <code>uxtest --human show &lt;study-id&gt;</code> only when a compact terminal summary is more useful.</p>
+      <p><strong>What to learn from this step.</strong> A report is not the source of truth. It can be regenerated as analysis improves. The trace and screenshot sequence are the durable record of what happened in the browser.</p>
+    </div>
+
+    <div class="lesson"><div class="lesson-label"><b>6</b> Inspect</div><h3>Read one trace as a causal chain</h3>
+      <p><strong>What we are doing and why.</strong> A completion percentage compresses too much. We inspect a flawed-page run to decide whether an apparent problem belongs to the interface, the synthetic visitor, or the test setup.</p>
+      <p>The study id below is the <code>data[].id</code> selected from <code>uxtest study list</code> in the preceding step. <code>trace</code> finds every run inside that study, so no run path is required:</p>
+      <pre><code>uxtest --human trace 2026-07-22-northstar-saas-fixture-flawed</code></pre>
+      <div class="output">Run: run-001-mobile-first-96f1  Persona: mobile-first  Outcome: max_steps
+  step 1: click View examples -&gt; continue  http://127.0.0.1:8776/?variant=flawed
+    thinking: Click view examples to follow the fixture's flawed discovery path.
+  step 2: click Open example -&gt; continue  http://127.0.0.1:8776/examples?variant=flawed
+    thinking: Click open example to follow the fixture's flawed discovery path.
+  step 3: click Menu -&gt; continue  http://127.0.0.1:8776/login?variant=flawed
+    thinking: Click menu to follow the fixture's flawed discovery path.
+  step 4: click Docs -&gt; continue  http://127.0.0.1:8776/login?variant=flawed
+    thinking: Click docs to follow the fixture's flawed discovery path.
+  step 5: click Docs -&gt; continue  http://127.0.0.1:8776/login?variant=flawed
+    thinking: Click docs to follow the fixture's flawed discovery path.
+  step 6: click Menu -&gt; continue  http://127.0.0.1:8776/login?variant=flawed
+    thinking: Click menu to follow the fixture's flawed discovery path.</div>
+      <h3>Generate the image-backed journey tree</h3>
+      <p>The text trace is precise, but it makes the reader reconstruct the visual sequence mentally. Generate a browser view whose nodes are the captured screenshots and whose edges are the recorded actions:</p>
+      <pre><code>uxtest journey 2026-07-22-northstar-saas-fixture-flawed</code></pre>
+      <div class="output">{
+  "artifacts": [
+    "uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/journey/journey.svg"
+  ],
+  "command": "journey",
+  "data": {
+    "stdout": "uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/journey/journey.svg"
+  },
+  "error": null,
+  "ok": true,
+  "schema_version": 1
+}</div>
+      <p><code>journey</code> reads the retained traces; it does not rerun the browser or call EDSL. It writes a self-contained SVG with the screenshots embedded inside it. For one run, it produces the click-through chain shown below. With several runs, common prefixes are merged and the diagram branches at the first different action or browser outcome. Reports embed this same SVG when it is available. Add <code>--open</code> to open it immediately.</p>
+      <figure class="report-shot"><button class="journey-button" type="button" onclick="openJourney()" aria-label="Open the full-size journey tree"><img src="assets/northstar-journey.svg" alt="Generated Northstar journey tree with screenshots at each captured step" loading="lazy"></button><figcaption><strong>The generated journey SVG.</strong> The dark “captured page” header and bordered screenshot identify browser evidence. The green “recorded navigation” panel beneath it is uxtest metadata, not part of the tested page. Select the preview to inspect the full-size tree with horizontal and vertical scrolling.</figcaption></figure>
+      <p>The trace output supplies the run id <code>run-001-mobile-first-96f1</code>. We use that exact id only when requesting the complete record for this particular journey. The study id and run id together are a durable evidence reference; the command resolves their storage path:</p>
+      <pre><code>uxtest show 2026-07-22-northstar-saas-fixture-flawed \
+  run-001-mobile-first-96f1 --trace</code></pre>
+      <details class="plan" id="captured-run-envelope"><summary>Captured output: complete run JSON envelope<span class="plan-note">Expand to inspect the envelope and its recorded persona, browser configuration, all six observations, actions, outcomes, and screenshots.</span></summary>
+<pre><code>{
+  "costs": {},
+  "environment": {
+    "browser": "chromium",
+    "os": "darwin-arm64",
+    "playwright_version": "1.60.0",
+    "uxtest_version": "0.1.0"
+  },
+  "final_url": "http://127.0.0.1:8776/login?variant=flawed",
+  "finished_at": "2026-07-22T12:36:41Z",
+  "outcome": "max_steps",
+  "outcome_detail": "Reached max_steps=6",
+  "persona_instance": {
+    "name": "mobile-first",
+    "resolved": {
+      "age_range": [
+        20,
+        40
+      ],
+      "device_familiarity": "mobile",
+      "patience": "medium",
+      "reading_style": "scans headings",
+      "tech_literacy": "high"
+    },
+    "snapshot": {
+      "accessibility": {},
+      "attributes": {
+        "age_range": [
+          20,
+          40
+        ],
+        "device_familiarity": "mobile",
+        "patience": "medium",
+        "reading_style": "scans headings",
+        "tech_literacy": "high"
+      },
+      "description": "Phone-first user who expects compact, direct flows",
+      "frustration": {
+        "per_step_decay": 1,
+        "threshold": 6
+      },
+      "goals_bias": "Looks for visible primary actions, direct navigation, and minimal friction.",
+      "name": "mobile-first",
+      "schema_version": 1
+    },
+    "source_sha256": "b48004191494f40b2c486e14b50352765a4e83374088d9a09a6d554031830a22"
+  },
+  "resolved_config": {
+    "a11y_audit": true,
+    "device_scale_factor": 3,
+    "has_touch": true,
+    "is_mobile": true,
+    "max_steps": 30,
+    "model": "gpt-4o",
+    "runs_per_persona": 1,
+    "screenshot": "full",
+    "screenshot_format": "png",
+    "screenshot_quality": 80,
+    "temperature": 0.7,
+    "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    }
+  },
+  "run_id": "run-001-mobile-first-96f1",
+  "schema_version": 1,
+  "seed": null,
+  "started_at": "2026-07-22T12:36:26Z",
+  "steps_taken": 6,
+  "study_id": "2026-07-22-northstar-saas-fixture-flawed",
+  "trace": [
+    {
+      "action": {
+        "ref": "e5",
+        "text": "View examples",
+        "type": "click",
+        "value": null
+      },
+      "event_type": "step",
+      "frustration": 2,
+      "model_decision": {
+        "driver": "scripted",
+        "edsl": {},
+        "frustration": 2,
+        "raw_response": null,
+        "status": "continue",
+        "thinking": "Click view examples to follow the fixture's flawed discovery path."
+      },
+      "observation": {
+        "a11y_audit": null,
+        "headings": [
+          {
+            "in_viewport": false,
+            "level": "h2",
+            "text": "Study Designer",
+            "y": 72
+          },
+          {
+            "in_viewport": false,
+            "level": "h2",
+            "text": "Interview Lab",
+            "y": 72
+          },
+          {
+            "in_viewport": false,
+            "level": "h2",
+            "text": "API &amp; SDK",
+            "y": 72
+          },
+          {
+            "in_viewport": true,
+            "level": "h1",
+            "text": "Test research decisions before fieldwork starts.",
+            "y": 254
+          },
+          {
+            "in_viewport": true,
+            "level": "h2",
+            "text": "Design",
+            "y": 799
+          },
+          {
+            "in_viewport": false,
+            "level": "h2",
+            "text": "Interview",
+            "y": 979
+          },
+          {
+            "in_viewport": false,
+            "level": "h2",
+            "text": "Validate",
+            "y": 1182
+          }
+        ],
+        "interactive_elements": 5,
+        "interactive_elements_sample": [
+          {
+            "context": "Northstar Research Log in / Sign up",
+            "label": "Northstar Research",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e1",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e1\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Northstar Research Log in / Sign up",
+            "label": "Log in / Sign up",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e2",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e2\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Northstar Research Log in / Sign up",
+            "label": "Menu",
+            "label_source": "inferred-menu-button",
+            "name": "",
+            "ref": "e3",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e3\"]",
+            "tag": "button",
+            "type": "button",
+            "value": ""
+          },
+          {
+            "context": "Test research decisions before fieldwork starts.",
+            "label": "Get started",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e4",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e4\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Test research decisions before fieldwork starts.",
+            "label": "View examples",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e5",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e5\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          }
+        ],
+        "screenshot": "screenshots/step-001.png",
+        "visible_text_preview": "Northstar Research\nLog in / Sign up\nSynthetic research operations\nTest research decisions before fieldwork starts.\nNorthstar helps teams design studies, interview simulated customers, and inspect evidence before spending fielding budget.\nGet started\nView examples\nDesign\nTurn goals into testable studies."
+      },
+      "page_title": "Northstar Research",
+      "result": {
+        "action_outcome": "url_navigation",
+        "console_errors": 0,
+        "final_url": "http://127.0.0.1:8776/examples?variant=flawed",
+        "navigation": true,
+        "ok": true,
+        "open_pages_delta": 0,
+        "state_change": true,
+        "url_change_type": "path"
+      },
+      "schema_version": 1,
+      "status": "continue",
+      "step": 1,
+      "stop_signal": {
+        "enough_evidence": false,
+        "should_stop_if_exploratory": false
+      },
+      "thinking": "Click view examples to follow the fixture's flawed discovery path.",
+      "ts": "2026-07-22T12:36:27Z",
+      "url": "http://127.0.0.1:8776/?variant=flawed"
+    },
+    {
+      "action": {
+        "ref": "e4",
+        "text": "Open example",
+        "type": "click",
+        "value": null
+      },
+      "event_type": "step",
+      "frustration": 2,
+      "model_decision": {
+        "driver": "scripted",
+        "edsl": {},
+        "frustration": 2,
+        "raw_response": null,
+        "status": "continue",
+        "thinking": "Click open example to follow the fixture's flawed discovery path."
+      },
+      "observation": {
+        "a11y_audit": null,
+        "headings": [
+          {
+            "in_viewport": false,
+            "level": "h2",
+            "text": "Study Designer",
+            "y": 0
+          },
+          {
+            "in_viewport": false,
+            "level": "h2",
+            "text": "Interview Lab",
+            "y": 0
+          },
+          {
+            "in_viewport": false,
+            "level": "h2",
+            "text": "API &amp; SDK",
+            "y": 0
+          },
+          {
+            "in_viewport": true,
+            "level": "h1",
+            "text": "Examples",
+            "y": 177
+          }
+        ],
+        "interactive_elements": 4,
+        "interactive_elements_sample": [
+          {
+            "context": "Northstar Research Log in / Sign up",
+            "label": "Northstar Research",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e1",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e1\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Northstar Research Log in / Sign up",
+            "label": "Log in / Sign up",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e2",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e2\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Northstar Research Log in / Sign up",
+            "label": "Menu",
+            "label_source": "inferred-menu-button",
+            "name": "",
+            "ref": "e3",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e3\"]",
+            "tag": "button",
+            "type": "button",
+            "value": ""
+          },
+          {
+            "context": "Examples",
+            "label": "Open example",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e4",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e4\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          }
+        ],
+        "screenshot": "screenshots/step-002.png",
+        "visible_text_preview": "Northstar Research\nLog in / Sign up\nNorthstar Research\nExamples\nRead notebooks for pricing research, landing-page tests, and message validation.\nOpen example"
+      },
+      "page_title": "Northstar Research",
+      "result": {
+        "action_outcome": "url_navigation",
+        "console_errors": 0,
+        "final_url": "http://127.0.0.1:8776/login?variant=flawed",
+        "navigation": true,
+        "ok": true,
+        "open_pages_delta": 0,
+        "state_change": true,
+        "url_change_type": "path"
+      },
+      "schema_version": 1,
+      "status": "continue",
+      "step": 2,
+      "stop_signal": {
+        "enough_evidence": false,
+        "should_stop_if_exploratory": false
+      },
+      "thinking": "Click open example to follow the fixture's flawed discovery path.",
+      "ts": "2026-07-22T12:36:28Z",
+      "url": "http://127.0.0.1:8776/examples?variant=flawed"
+    },
+    {
+      "action": {
+        "ref": "e3",
+        "text": "Menu",
+        "type": "click",
+        "value": null
+      },
+      "event_type": "step",
+      "frustration": 2,
+      "model_decision": {
+        "driver": "scripted",
+        "edsl": {},
+        "frustration": 2,
+        "raw_response": null,
+        "status": "continue",
+        "thinking": "Click menu to follow the fixture's flawed discovery path."
+      },
+      "observation": {
+        "a11y_audit": null,
+        "headings": [
+          {
+            "in_viewport": false,
+            "level": "h2",
+            "text": "Study Designer",
+            "y": 0
+          },
+          {
+            "in_viewport": false,
+            "level": "h2",
+            "text": "Interview Lab",
+            "y": 0
+          },
+          {
+            "in_viewport": false,
+            "level": "h2",
+            "text": "API &amp; SDK",
+            "y": 0
+          },
+          {
+            "in_viewport": true,
+            "level": "h1",
+            "text": "Log in",
+            "y": 141
+          }
+        ],
+        "interactive_elements": 8,
+        "interactive_elements_sample": [
+          {
+            "context": "Northstar Research Log in / Sign up",
+            "label": "Northstar Research",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e1",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e1\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Northstar Research Log in / Sign up",
+            "label": "Log in / Sign up",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e2",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e2\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Northstar Research Log in / Sign up",
+            "label": "Menu",
+            "label_source": "inferred-menu-button",
+            "name": "",
+            "ref": "e3",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e3\"]",
+            "tag": "button",
+            "type": "button",
+            "value": ""
+          },
+          {
+            "context": "Log in",
+            "label": "Continue with Google",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e4",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e4\"]",
+            "tag": "button",
+            "type": "button",
+            "value": ""
+          },
+          {
+            "context": "Log in",
+            "label": "Continue with Microsoft",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e5",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e5\"]",
+            "tag": "button",
+            "type": "button",
+            "value": ""
+          },
+          {
+            "context": "Log in",
+            "label": "Enter your email address",
+            "label_source": "placeholder",
+            "name": "",
+            "ref": "e6",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e6\"]",
+            "tag": "input",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Log in",
+            "label": "Enter your password",
+            "label_source": "placeholder",
+            "name": "",
+            "ref": "e7",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e7\"]",
+            "tag": "input",
+            "type": "password",
+            "value": ""
+          },
+          {
+            "context": "Log in",
+            "label": "Continue",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e8",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e8\"]",
+            "tag": "button",
+            "type": "button",
+            "value": ""
+          }
+        ],
+        "screenshot": "screenshots/step-003.png",
+        "visible_text_preview": "Northstar Research\nLog in / Sign up\nLog in\nUse your account to continue.\nContinue with Google\nContinue with Microsoft\nEmail address\nPassword\nContinue"
+      },
+      "page_title": "Northstar Research",
+      "result": {
+        "action_outcome": "same_page_state_change",
+        "console_errors": 0,
+        "final_url": "http://127.0.0.1:8776/login?variant=flawed",
+        "navigation": false,
+        "ok": true,
+        "open_pages_delta": 0,
+        "state_change": true,
+        "url_change_type": "none"
+      },
+      "schema_version": 1,
+      "status": "continue",
+      "step": 3,
+      "stop_signal": {
+        "enough_evidence": false,
+        "should_stop_if_exploratory": false
+      },
+      "thinking": "Click menu to follow the fixture's flawed discovery path.",
+      "ts": "2026-07-22T12:36:31Z",
+      "url": "http://127.0.0.1:8776/login?variant=flawed"
+    },
+    {
+      "action": {
+        "ref": "e8",
+        "text": "Docs",
+        "type": "click",
+        "value": null
+      },
+      "event_type": "step",
+      "frustration": 2,
+      "model_decision": {
+        "driver": "scripted",
+        "edsl": {},
+        "frustration": 2,
+        "raw_response": null,
+        "status": "continue",
+        "thinking": "Click docs to follow the fixture's flawed discovery path."
+      },
+      "observation": {
+        "a11y_audit": null,
+        "headings": [
+          {
+            "in_viewport": true,
+            "level": "h2",
+            "text": "Study Designer",
+            "y": 103
+          },
+          {
+            "in_viewport": true,
+            "level": "h2",
+            "text": "Interview Lab",
+            "y": 293
+          },
+          {
+            "in_viewport": true,
+            "level": "h2",
+            "text": "API &amp; SDK",
+            "y": 483
+          },
+          {
+            "in_viewport": true,
+            "level": "h1",
+            "text": "Log in",
+            "y": 141
+          }
+        ],
+        "interactive_elements": 14,
+        "interactive_elements_sample": [
+          {
+            "context": "Northstar Research Log in / Sign up",
+            "label": "Northstar Research",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e1",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e1\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Northstar Research Log in / Sign up",
+            "label": "Log in / Sign up",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e2",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e2\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Northstar Research Log in / Sign up",
+            "label": "Menu",
+            "label_source": "inferred-menu-button",
+            "name": "",
+            "ref": "e3",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e3\"]",
+            "tag": "button",
+            "type": "button",
+            "value": ""
+          },
+          {
+            "context": "Log in",
+            "label": "Overview",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e4",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e4\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Log in",
+            "label": "Examples",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e5",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e5\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Interview Lab",
+            "label": "How it works",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e6",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e6\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Interview Lab",
+            "label": "Examples",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e7",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e7\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "API &amp; SDK",
+            "label": "Docs",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e8",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e8\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "API &amp; SDK",
+            "label": "Quickstart",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e9",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e9\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Log in",
+            "label": "Continue with Google",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e10",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e10\"]",
+            "tag": "button",
+            "type": "button",
+            "value": ""
+          },
+          {
+            "context": "Interview Lab",
+            "label": "Continue with Microsoft",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e11",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e11\"]",
+            "tag": "button",
+            "type": "button",
+            "value": ""
+          },
+          {
+            "context": "Interview Lab",
+            "label": "Enter your email address",
+            "label_source": "placeholder",
+            "name": "",
+            "ref": "e12",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e12\"]",
+            "tag": "input",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Interview Lab",
+            "label": "Enter your password",
+            "label_source": "placeholder",
+            "name": "",
+            "ref": "e13",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e13\"]",
+            "tag": "input",
+            "type": "password",
+            "value": ""
+          },
+          {
+            "context": "API &amp; SDK",
+            "label": "Continue",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e14",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e14\"]",
+            "tag": "button",
+            "type": "button",
+            "value": ""
+          }
+        ],
+        "screenshot": "screenshots/step-004.png",
+        "visible_text_preview": "Northstar Research\nLog in / Sign up\nStudy Designer\nDraft surveys, experiments, and interview guides.\nOverview\nExamples\nInterview Lab\nRun AI-moderated qualitative interviews.\nHow it works\nExamples\nAPI &amp; SDK\nBuild research workflows in code.\nDocs\nQuickstart\nLog in\nUse your account to continue.\nContinue with Google\nContinue with Microsoft\nEmail address\nPassword\nContinue"
+      },
+      "page_title": "Northstar Research",
+      "result": {
+        "action_outcome": "no_visible_change",
+        "console_errors": 0,
+        "final_url": "http://127.0.0.1:8776/login?variant=flawed",
+        "navigation": false,
+        "ok": true,
+        "open_pages_delta": 0,
+        "state_change": false,
+        "url_change_type": "none"
+      },
+      "schema_version": 1,
+      "status": "continue",
+      "step": 4,
+      "stop_signal": {
+        "enough_evidence": true,
+        "should_stop_if_exploratory": true
+      },
+      "thinking": "Click docs to follow the fixture's flawed discovery path.",
+      "ts": "2026-07-22T12:36:34Z",
+      "url": "http://127.0.0.1:8776/login?variant=flawed"
+    },
+    {
+      "action": {
+        "ref": "e8",
+        "text": "Docs",
+        "type": "click",
+        "value": null
+      },
+      "event_type": "step",
+      "frustration": 2,
+      "model_decision": {
+        "driver": "scripted",
+        "edsl": {},
+        "frustration": 2,
+        "raw_response": null,
+        "status": "continue",
+        "thinking": "Click docs to follow the fixture's flawed discovery path."
+      },
+      "observation": {
+        "a11y_audit": null,
+        "headings": [
+          {
+            "in_viewport": true,
+            "level": "h2",
+            "text": "Study Designer",
+            "y": 103
+          },
+          {
+            "in_viewport": true,
+            "level": "h2",
+            "text": "Interview Lab",
+            "y": 293
+          },
+          {
+            "in_viewport": true,
+            "level": "h2",
+            "text": "API &amp; SDK",
+            "y": 483
+          },
+          {
+            "in_viewport": true,
+            "level": "h1",
+            "text": "Log in",
+            "y": 141
+          }
+        ],
+        "interactive_elements": 14,
+        "interactive_elements_sample": [
+          {
+            "context": "Northstar Research Log in / Sign up",
+            "label": "Northstar Research",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e1",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e1\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Northstar Research Log in / Sign up",
+            "label": "Log in / Sign up",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e2",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e2\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Northstar Research Log in / Sign up",
+            "label": "Menu",
+            "label_source": "inferred-menu-button",
+            "name": "",
+            "ref": "e3",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e3\"]",
+            "tag": "button",
+            "type": "button",
+            "value": ""
+          },
+          {
+            "context": "Log in",
+            "label": "Overview",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e4",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e4\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Log in",
+            "label": "Examples",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e5",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e5\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Interview Lab",
+            "label": "How it works",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e6",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e6\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Interview Lab",
+            "label": "Examples",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e7",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e7\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "API &amp; SDK",
+            "label": "Docs",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e8",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e8\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "API &amp; SDK",
+            "label": "Quickstart",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e9",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e9\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Log in",
+            "label": "Continue with Google",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e10",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e10\"]",
+            "tag": "button",
+            "type": "button",
+            "value": ""
+          },
+          {
+            "context": "Interview Lab",
+            "label": "Continue with Microsoft",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e11",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e11\"]",
+            "tag": "button",
+            "type": "button",
+            "value": ""
+          },
+          {
+            "context": "Interview Lab",
+            "label": "Enter your email address",
+            "label_source": "placeholder",
+            "name": "",
+            "ref": "e12",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e12\"]",
+            "tag": "input",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Interview Lab",
+            "label": "Enter your password",
+            "label_source": "placeholder",
+            "name": "",
+            "ref": "e13",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e13\"]",
+            "tag": "input",
+            "type": "password",
+            "value": ""
+          },
+          {
+            "context": "API &amp; SDK",
+            "label": "Continue",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e14",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e14\"]",
+            "tag": "button",
+            "type": "button",
+            "value": ""
+          }
+        ],
+        "screenshot": "screenshots/step-005.png",
+        "visible_text_preview": "Northstar Research\nLog in / Sign up\nStudy Designer\nDraft surveys, experiments, and interview guides.\nOverview\nExamples\nInterview Lab\nRun AI-moderated qualitative interviews.\nHow it works\nExamples\nAPI &amp; SDK\nBuild research workflows in code.\nDocs\nQuickstart\nLog in\nUse your account to continue.\nContinue with Google\nContinue with Microsoft\nEmail address\nPassword\nContinue"
+      },
+      "page_title": "Northstar Research",
+      "result": {
+        "action_outcome": "no_visible_change",
+        "console_errors": 0,
+        "final_url": "http://127.0.0.1:8776/login?variant=flawed",
+        "navigation": false,
+        "ok": true,
+        "open_pages_delta": 0,
+        "state_change": false,
+        "url_change_type": "none"
+      },
+      "schema_version": 1,
+      "status": "continue",
+      "step": 5,
+      "stop_signal": {
+        "enough_evidence": true,
+        "should_stop_if_exploratory": true
+      },
+      "thinking": "Click docs to follow the fixture's flawed discovery path.",
+      "ts": "2026-07-22T12:36:38Z",
+      "url": "http://127.0.0.1:8776/login?variant=flawed"
+    },
+    {
+      "action": {
+        "ref": "e3",
+        "text": "Menu",
+        "type": "click",
+        "value": null
+      },
+      "event_type": "step",
+      "frustration": 2,
+      "model_decision": {
+        "driver": "scripted",
+        "edsl": {},
+        "frustration": 2,
+        "raw_response": null,
+        "status": "continue",
+        "thinking": "Click menu to follow the fixture's flawed discovery path."
+      },
+      "observation": {
+        "a11y_audit": null,
+        "headings": [
+          {
+            "in_viewport": true,
+            "level": "h2",
+            "text": "Study Designer",
+            "y": 103
+          },
+          {
+            "in_viewport": true,
+            "level": "h2",
+            "text": "Interview Lab",
+            "y": 293
+          },
+          {
+            "in_viewport": true,
+            "level": "h2",
+            "text": "API &amp; SDK",
+            "y": 483
+          },
+          {
+            "in_viewport": true,
+            "level": "h1",
+            "text": "Log in",
+            "y": 141
+          }
+        ],
+        "interactive_elements": 14,
+        "interactive_elements_sample": [
+          {
+            "context": "Northstar Research Log in / Sign up",
+            "label": "Northstar Research",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e1",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e1\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Northstar Research Log in / Sign up",
+            "label": "Log in / Sign up",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e2",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e2\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Northstar Research Log in / Sign up",
+            "label": "Menu",
+            "label_source": "inferred-menu-button",
+            "name": "",
+            "ref": "e3",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e3\"]",
+            "tag": "button",
+            "type": "button",
+            "value": ""
+          },
+          {
+            "context": "Log in",
+            "label": "Overview",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e4",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e4\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Log in",
+            "label": "Examples",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e5",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e5\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Interview Lab",
+            "label": "How it works",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e6",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e6\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Interview Lab",
+            "label": "Examples",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e7",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e7\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "API &amp; SDK",
+            "label": "Docs",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e8",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e8\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "API &amp; SDK",
+            "label": "Quickstart",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e9",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e9\"]",
+            "tag": "a",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Log in",
+            "label": "Continue with Google",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e10",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e10\"]",
+            "tag": "button",
+            "type": "button",
+            "value": ""
+          },
+          {
+            "context": "Interview Lab",
+            "label": "Continue with Microsoft",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e11",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e11\"]",
+            "tag": "button",
+            "type": "button",
+            "value": ""
+          },
+          {
+            "context": "Interview Lab",
+            "label": "Enter your email address",
+            "label_source": "placeholder",
+            "name": "",
+            "ref": "e12",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e12\"]",
+            "tag": "input",
+            "type": "",
+            "value": ""
+          },
+          {
+            "context": "Interview Lab",
+            "label": "Enter your password",
+            "label_source": "placeholder",
+            "name": "",
+            "ref": "e13",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e13\"]",
+            "tag": "input",
+            "type": "password",
+            "value": ""
+          },
+          {
+            "context": "API &amp; SDK",
+            "label": "Continue",
+            "label_source": "innerText",
+            "name": "",
+            "ref": "e14",
+            "role": "",
+            "selector_hint": "[data-uxtest-ref=\"e14\"]",
+            "tag": "button",
+            "type": "button",
+            "value": ""
+          }
+        ],
+        "screenshot": "screenshots/step-006.png",
+        "visible_text_preview": "Northstar Research\nLog in / Sign up\nStudy Designer\nDraft surveys, experiments, and interview guides.\nOverview\nExamples\nInterview Lab\nRun AI-moderated qualitative interviews.\nHow it works\nExamples\nAPI &amp; SDK\nBuild research workflows in code.\nDocs\nQuickstart\nLog in\nUse your account to continue.\nContinue with Google\nContinue with Microsoft\nEmail address\nPassword\nContinue"
+      },
+      "page_title": "Northstar Research",
+      "result": {
+        "action_outcome": "same_page_state_change",
+        "console_errors": 0,
+        "final_url": "http://127.0.0.1:8776/login?variant=flawed",
+        "navigation": false,
+        "ok": true,
+        "open_pages_delta": 0,
+        "state_change": true,
+        "url_change_type": "none"
+      },
+      "schema_version": 1,
+      "status": "continue",
+      "step": 6,
+      "stop_signal": {
+        "enough_evidence": true,
+        "should_stop_if_exploratory": true
+      },
+      "thinking": "Click menu to follow the fixture's flawed discovery path.",
+      "ts": "2026-07-22T12:36:41Z",
+      "url": "http://127.0.0.1:8776/login?variant=flawed"
+    }
+  ]
+}</code></pre>
+      </details>
+      <p>For each step, connect five things: the visible page, the persona’s reasoning, the requested action, the browser result, and the next screenshot. A useful trace reading looks like this:</p>
+      <table><thead><tr><th>Evidence</th><th>Question to ask</th></tr></thead><tbody><tr><td>Thinking: “Get started may show the product.”</td><td>Was the choice reasonable from the visible wording?</td></tr><tr><td>Action: click “Get started”</td><td>Did the model identify the intended control?</td></tr><tr><td>Outcome: <code>url_navigation</code> to login</td><td>Did the interface fulfill the product-learning intent?</td></tr><tr><td>Next action repeats a generic CTA</td><td>Is this UI-induced confusion, agent looping, or both?</td></tr><tr><td><code>stop_quality</code></td><td>Was the final resolution trustworthy?</td></tr></tbody></table>
+      <div class="callout"><strong>Why this matters</strong>The phrase “the CTA is confusing” is an interpretation. The trace chain—visible generic label → reasonable product-learning intent → authentication detour—is the evidence.</div>
+      <p><strong>What we can conclude.</strong> If the label reasonably suggested product information and the recorded outcome navigated to login, we have evidence of an expectation mismatch in this run. If the visitor repeatedly clicks an unchanged control despite clear feedback, that may instead be agent looping. <code>action_outcome</code> and <code>stop_quality</code> help keep those explanations separate.</p>
+    </div>
+
+    <div class="lesson"><div class="lesson-label"><b>7</b> Compare</div><h3>Use the evidence views for different jobs</h3>
+      <p><strong>What we are doing and why.</strong> Now that we understand one trace, the generated views can help us look for patterns without losing the evidence trail. They are different views of the same runs, not additional observations.</p>
+      <pre><code># Open these paths with your available browser/file viewer
+uxtest_store/comparisons/northstar-saas-fixture-regression.html
+uxtest_store/studies/&lt;flawed-study-id&gt;/analysis/log.html
+uxtest_store/studies/&lt;flawed-study-id&gt;/analysis/report.html</code></pre>
+      <p>These are file paths because the next operation is opening a generated HTML document, not asking uxtest to resolve an object. Do not type them from memory: take the comparison and report paths from the <code>artifacts</code> array returned by <code>fixture run</code>. If constructing the study-specific paths, replace <code>&lt;flawed-study-id&gt;</code> with the exact <code>id</code> selected from <code>study list</code>. On macOS, for example, <code>open &lt;path&gt;</code> opens one in the default browser.</p>
+      <div class="artifact"><strong>comparison</strong><p>Start here for the clear-versus-flawed outcome, recovered expectations, and high-level contrast.</p></div><div class="artifact"><strong>log.html</strong><p>Use this to debug: screenshots, decisions, actions, browser results, and step-by-step state.</p></div><div class="artifact"><strong>report.html</strong><p>Use this deterministic evidence dashboard to review completion, severity, findings, affected runs, and linked evidence. It is not the final stakeholder report.</p></div>
+      <figure class="report-shot"><img src="assets/uxtest-report.png" alt="Generated uxtest evidence dashboard with completion, run count, mean steps, frustration, study context, severity, and findings" loading="lazy"><figcaption><strong>What the technical <code>report.html</code> evidence view looks like.</strong> It organizes package outputs for inspection. A coding agent follows the report handoff later to interpret this evidence and author the actual narrative.</figcaption></figure>
+      <p><strong>What to look for.</strong> Start with whether the clear and flawed variants ended differently. Then check how many runs support each finding and whether any run was unresolved or low quality. Finally, follow a finding back to its screenshot and trace. The severity badge is an analysis judgment; the linked run is the evidence you should trust.</p>
+    </div>
+
+    <div class="lesson"><div class="lesson-label"><b>8</b> Upgrade</div><h3>Repeat with real EDSL persona decisions</h3>
+      <p><strong>What we are doing and why.</strong> The deterministic run showed that the experiment works and that known defects are observable. We now replace the fixed action path with synthetic visitors that interpret the task and page for themselves. This is the exploratory part of uxtest.</p>
+      <pre><code>uxtest fixture register . --name northstar-edsl \
+  --plan regression-edsl.yaml
+uxtest fixture validate northstar-edsl</code></pre>
+      <p><code>fixture register</code> reuses the directory already copied in step 2 but selects its second plan, <code>regression-edsl.yaml</code>. The stable registered name is <code>northstar-edsl</code>, so the subsequent validate and run commands do not need the YAML path. Validation reads the plan only; it does not launch EDSL.</p>
+      <div class="output">uxtest_store/fixtures/northstar-edsl/fixture.yaml
+Fixture 'northstar-edsl' is valid: uxtest_store/fixtures/northstar-edsl/fixture.yaml</div>
+      <pre><code>uxtest fixture run northstar-edsl</code></pre>
+      <p><strong>No captured output is shown for this command.</strong> Unlike the scripted run, it launches billable remote EDSL decisions—up to 36 jobs for this fixture. Its output will use the same artifact-path format shown above, with three run directories per variant. Run it only when credentials, budget, and intent are in place.</p>
+      <p>This version changes the driver from <code>scripted</code> to <code>edsl</code>, uses three personas—mobile-first, low-confidence, and price-sensitive—and permits two concurrent runs. The site, device, task family, variants, and maximum steps remain controlled, so the main new variable is synthetic visitor judgment.</p>
+      <pre><code>uxtest trace &lt;edsl-study-id&gt; --edsl-jobs
+uxtest show &lt;edsl-study-id&gt; &lt;run-id&gt; --trace</code></pre>
+      <p>As before, obtain <code>&lt;edsl-study-id&gt;</code> from the structured <code>study list</code> response. The first command returns the EDSL job metadata recorded at each step. It also reveals the run ids; use one of those in the second command to retrieve the complete browser-and-model record. Default output is already JSON, so no <code>--json</code> flag is required.</p>
+      <p>These commands cannot have authentic output until the preceding EDSL fixture has actually run. A scripted trace correctly returns <code>No EDSL jobs found in traces.</code>; presenting remote job URLs here without launching them would be fabricated.</p>
+      <p>The trace records the remote job UUID, model, progress/results URLs, structured decision, and browser outcome. With three personas × two variants × up to six steps, budget for as many as 36 remote decision jobs.</p>
+      <p>This follows the same evidence rule as the image review: model output is not detached prose. Every EDSL decision is stored beside the screenshot and browser outcome that produced the next state. The difference is frequency: the Acme image job evaluated one completed capture, while the multi-step driver asks EDSL for the next action at each state and records the resulting sequence.</p>
+      <p><strong>What to learn from the new runs.</strong> Look for convergence and disagreement. Do different personas independently form the same expectation about a label? Does only the low-confidence persona stop early? Does a price-sensitive visitor seek pricing before product details? These are candidate hypotheses about the experience. Persona differences are not measurements of real demographic groups.</p>
+      <div class="callout warn"><strong>Compare patterns, not exact clicks</strong>The scripted fixture establishes that the instrumentation and known checks work. The EDSL version explores whether differently framed visitors encounter similar friction; it is expected to vary.</div>
+    </div>
+
+    <div class="lesson"><div class="lesson-label"><b>9</b> Communicate</div><h3>Hand evidence to the report-writing agent</h3>
+      <p><strong>What we are doing and why.</strong> The final step translates browser evidence into a decision aid. A useful report explains the research question, observed paths, strength and limits of the evidence, and the next validation step. It does not simply repeat every metric the package generated.</p>
+      <pre><code>uxtest docs show report-writer-agent</code></pre>
+      <div class="output excerpt"># Report Writer Agent Guide
+
+Use this guide when a coding or research agent needs to turn completed
+`uxtest` evidence into a stakeholder-facing narrative report.
+...</div>
+      <p>The guide is longer than this excerpt; the command prints the complete packaged Markdown document.</p>
+      <pre><code>uxtest report guide 2026-07-22-northstar-saas-fixture-flawed
+uxtest report template 2026-07-22-northstar-saas-fixture-flawed</code></pre>
+      <div class="output excerpt">{
+  "artifacts": [],
+  "command": "report guide",
+  "data": {
+    "available_evidence": [
+      {
+        "available": true,
+        "path": "uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/study.yaml",
+        "purpose": "Study question, task, target, personas, and success criteria."
+      },
+      {
+        "available": true,
+        "path": "uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/journey/journey.svg",
+        "purpose": "Screenshot-backed navigation tree."
+      },
+      {
+        "available": true,
+        "path": "uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/runs/run-001-mobile-first-96f1/trace.jsonl",
+        "purpose": "Action, reasoning, outcome, and screenshot references for run-001-mobile-first-96f1."
+      }
+    ],
+    "next_command": "uxtest report template 2026-07-22-northstar-saas-fixture-flawed",
+    "purpose": "Structured evidence handoff for the coding agent that writes the final report.",
+    "target_file": "writeup/report.md",
+    "uxtest_role": "uxtest records browser evidence, model decisions, screenshots, deterministic summaries, and technical views. It does not write the final stakeholder narrative."
+  },
+  "ok": true,
+  "schema_version": 1
+}</div>
+      <p>This is an excerpt from the actual response: the complete envelope also lists scores, findings, the evidence dashboard, log, image review, run metadata, recommended sections, and writing rules. The following <code>template</code> response contains a study-specific Markdown scaffold and writes no file.</p>
+      <p>The CLI supplies evidence, availability checks, structure, and writing rules. The coding agent inspects those sources and writes the final narrative—normally <code>writeup/report.md</code>—with its own judgment and traceable claims.</p>
+      <p>For a report spanning both variants, give the report-writing agent both study handoffs and the generated comparison path. The agent should reconcile the evidence and write one narrative; no additional package-generated narrative is needed. <strong>What good reporting sounds like:</strong> “Two browser-agent runs followed the product-learning CTA into login; test CTA copy that names the destination and lets visitors inspect the product before authentication.”</p>
+    </div>
+  </section>
+
+  <section id="features"><h2><span>6.</span> Optional follow-up questions</h2>
+    <p>The core study is complete after comparison and evidence handoff. The commands below are not a required checklist. Each answers a different follow-up question using the same evidence. Choose one only when that question matters.</p>
+    <div class="lesson"><div class="lesson-label"><b>A</b> Replay</div><h3>Watch the journey instead of reading JSON</h3><pre><code>uxtest animate 2026-07-22-northstar-saas-fixture-flawed --delay 250 --max-width 520</code></pre><div class="output">uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/animations/index.html</div><p>Open <code>analysis/animations/index.html</code>. Use the GIF to understand page transitions quickly; return to the trace for exact claims because an animation omits structured action and outcome metadata.</p></div>
+    <div class="lesson"><div class="lesson-label"><b>B</b> Human check</div><h3>Turn decisive screenshots into a human survey</h3><pre><code>uxtest humanize-export &lt;edsl-study-id&gt; \
+  --template task-discovery \
+  --screenshots representative --max-screenshots 8 \
+  --output ./humanize/jobs.ep
+ep inspect ./humanize/jobs.ep
+ep humanize create \
+  --jobs ./humanize/jobs.ep \
+  --scenario_method ordered \
+  --schema ./humanize/humanize_schema.json</code></pre><div class="output">{
+  "artifacts": [],
+  "command": "humanize-export",
+  "data": {
+    "jobs_path": "humanize/jobs.ep",
+    "manifest_path": "humanize/jobs.manifest.json",
+    "next_commands": [
+      "ep inspect humanize/jobs.ep",
+      "ep humanize create --jobs humanize/jobs.ep --scenario_method ordered --schema humanize/humanize_schema.json"
+    ],
+    "schema_path": "humanize/humanize_schema.json",
+    "study_id": "2026-07-22-northstar-saas-fixture-flawed"
+  },
+  "error": null,
+  "ok": true,
+  "schema_version": 1
+}
+
+{
+  "status": "ok",
+  "data": {
+    "object_type": "Jobs",
+    "length": 2,
+    "question_count": 4,
+    "scenario_count": 2,
+    "model_count": 0
+  },
+  "warnings": []
+}</div><p>The first object is the actual exporter response: the agent chooses <code>./humanize/jobs.ep</code>, and uxtest returns the resolved companion paths and exact next commands. The second object is the actual <code>ep inspect</code> response. The model-free Jobs package contains four questions and two screenshot scenarios. Inspecting it is local. Creating the survey is the explicit remote step.</p>
+      <div class="callout"><strong>Actual survey created from this package</strong><a href="https://www.expectedparrot.com/respond/human-surveys/cca59ab1-e3a3-4f00-895f-93d2cda57058?save_response=false" target="_blank" rel="noopener">Open the respondent preview</a>. The private survey’s admin page is <a href="https://www.expectedparrot.com/home/human-surveys/cca59ab1-e3a3-4f00-895f-93d2cda57058" target="_blank" rel="noopener">available here</a>. Its human-survey id is <code>cca59ab1-e3a3-4f00-895f-93d2cda57058</code>.</div>
+      <p><strong>Current EDSL CLI issue:</strong> the pinned CLI simultaneously requires and rejects <code>--scenario_method</code> for a Jobs package containing scenarios. This survey was created through the equivalent EDSL API call after the CLI exposed that validation error. The documented CLI command is the intended interface, but it needs that upstream guard corrected before it succeeds.</p></div>
+    <div class="lesson"><div class="lesson-label"><b>C</b> Follow-up</div><h3>Interview the completed trace agents</h3><pre><code>uxtest agents export &lt;edsl-study-id&gt;
+uxtest interview &lt;edsl-study-id&gt; \
+  --question "What did you expect Get started to do?" \
+  --question "What evidence was missing before you could choose a product?"
+python uxtest_store/studies/&lt;edsl-study-id&gt;/analysis/agent_interview.py</code></pre><div class="output">uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/agent_list.py
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/agent_list.manifest.json
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/agent_interview.py
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/agent_interview.manifest.json
+Study: 2026-07-22-northstar-saas-fixture-flawed - Northstar SaaS Fixture (flawed)
+Agents: 1
+Questions: 2
+Dry run only. Re-run with --launch to call EDSL remote inference.</div><p>This output was captured using the scripted study id in place of <code>&lt;edsl-study-id&gt;</code>. Each exported EDSL Agent contains its persona, journey, visible text, actions, reasoning, frustration, outcome, and screenshot FileStores. The generated interview script defaults to a dry run; <code>--launch</code> begins inference.</p></div>
+    <div class="lesson"><div class="lesson-label"><b>D</b> Visual attention</div><h3>Add real saliency evidence</h3><pre><code>export UXTEST_SUM_DIR=/path/to/SUM
+uxtest saliency run &lt;edsl-study-id&gt; --sum \
+  --screenshots representative --max-screenshots 12</code></pre><p><strong>No captured output is shown.</strong> This feature requires a user-supplied SUM checkout or another real external model. When configured, the command prints the generated <code>analysis/saliency/index.html</code> path; without one, uxtest fails rather than inventing saliency.</p></div>
+    <div class="lesson"><div class="lesson-label"><b>E</b> Regression</div><h3>See how expected flaws become a gate</h3><pre><code>uxtest eval &lt;flawed-study-id&gt; --expect expected_flaws.yaml \
+  --variant flawed --policy threshold --minimum-recovered-expected 1
+uxtest eval &lt;clear-study-id&gt; --expect expected_flaws.yaml \
+  --variant clear --policy strict</code></pre><div class="output">uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/eval.json
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/eval.html</div><p>The displayed output is the captured flawed-study invocation; the clear invocation writes the corresponding two paths beneath the clear study. The flawed run should recover at least one known issue; the clear run should satisfy its positive first-click check and avoid flaws marked <code>absent_in: clear</code>. Use <code>report_only</code> for exploratory live sites where model variability should not fail CI.</p></div>
+  </section>
+
+  <section id="mental-model"><h2><span>7.</span> Mental model</h2>
+    <p>A <strong>study</strong> is the durable research request: the target, task, personas, and success criteria. A <strong>run</strong> is one persona attempting that request on one configured device or variant. A <strong>trace</strong> records the individual observations, decisions, actions, browser outcomes, and screenshots from that attempt. Analysis combines those events into scores and findings. Reports present the analysis for review.</p>
+    <p>This distinction matters because the layers have different evidentiary weight. Reports are convenient but derived; they can be regenerated or improved. Raw traces are the event-level source of truth. When a finding seems surprising, inspect the run that produced it rather than reasoning from the report alone.</p>
+    <table><thead><tr><th>Layer</th><th>What it answers</th><th>Agent rule</th></tr></thead><tbody>
+      <tr><td>Study</td><td>What task, target, personas, and success criteria?</td><td>Make the task behavioral and the criteria observable.</td></tr>
+      <tr><td>Run</td><td>What happened for one persona/device combination?</td><td>Do not silently discard interrupted or awkward runs.</td></tr>
+      <tr><td>Trace</td><td>What was visible, decided, attempted, and changed?</td><td>Return here whenever a summary looks surprising.</td></tr>
+      <tr><td>Analysis</td><td>What patterns and quality signals recur?</td><td>Treat it as derived, not canonical.</td></tr>
+      <tr><td>Evidence views</td><td>What patterns should the report-writing agent investigate?</td><td>Use them to navigate; verify claims against traces.</td></tr>
+    </tbody></table>
+  </section>
+
+  <section id="choose"><h2><span>8.</span> Choose the smallest study</h2>
+    <p>Start with the user’s decision, not a favorite command. Read the matching packaged guide before inventing a protocol: <code>uxtest docs show &lt;guide&gt;</code>.</p>
+    <div class="cards">
+      <div class="card"><span class="tag">Orientation</span><h3>Task discovery</h3><p>What is this page? What gets the first click? Where does confidence break?</p></div>
+      <div class="card"><span class="tag">Meaning</span><h3>Content comprehension</h3><p>Can visitors explain the offer, audience, claims, proof, and next step?</p></div>
+      <div class="card"><span class="tag">Action</span><h3>Conversion path</h3><p>Can a visitor reach demo, signup, pricing, checkout, contact, or a gated asset?</p></div>
+      <div class="card"><span class="tag">Navigation</span><h3>Information architecture</h3><p>Where do visitors expect docs, security, pricing, examples, APIs, or support?</p></div>
+      <div class="card"><span class="tag">Proof</span><h3>Feature findability</h3><p>Can a visitor verify a feature, integration, API, workflow, or permission model?</p></div>
+      <div class="card"><span class="tag">Buying</span><h3>Enterprise research</h3><p>Can buyers, operators, technical evaluators, and risk reviewers find enough evidence?</p></div>
+      <div class="card"><span class="tag">Product</span><h3>Onboarding or post-login</h3><p>Can a new or authenticated user complete a meaningful role-specific workflow?</p></div>
+      <div class="card"><span class="tag">Change</span><h3>Benchmark or regression</h3><p>Compare competitors, variants, releases, devices, or before/after designs.</p></div>
+    </div>
+    <pre><code>uxtest docs list
+uxtest docs show task-discovery
+uxtest docs show conversion-path-testing
+uxtest docs show accessibility-inclusive-ux</code></pre>
+    <div class="output excerpt">README.md
+SPEC.md
+report_writer_agent.md
+study_types/README.md
+study_types/accessibility_inclusive_ux/README.md
+study_types/competitive_benchmark_studies/README.md
+study_types/content_comprehension/README.md
+study_types/conversion_path_testing/README.md
+study_types/enterprise_buying_research/README.md
+study_types/feature_findability/README.md
+study_types/information_architecture/README.md
+study_types/longitudinal_regression/README.md
+...
+# Task Discovery Studies
+...
+# Conversion Path Testing
+...
+# Accessibility And Inclusive UX
+...</div>
+    <p><code>docs list</code> produced the filenames above; each <code>docs show</code> command then printed the corresponding full Markdown guide. The headings are shown here rather than repeating three long guides inside this guide.</p>
+  </section>
+
+  <section id="fixture"><h2><span>9.</span> Fixture anatomy</h2>
+    <p>Fixtures are the quickest repeatable path. Inspect with <code>examples path</code>; copy before editing or treating one as a project artifact; run with <code>ci</code>.</p>
+    <pre><code>uxtest examples list
+uxtest examples path expectedparrot-task-discovery
+uxtest examples copy ./task-discovery.yaml \
+  --name expectedparrot-task-discovery
+uxtest ci ./task-discovery.yaml</code></pre>
+    <div class="output excerpt">checkout_site/README.md
+checkout_site/server.py
+checkout_site/static/app.js
+...
+saas_site/regression-edsl.yaml
+saas_site/regression.yaml
+saas_site/server.py
+...
+/.../uxtest/resources/examples/expectedparrot_site/task-discovery.yaml
+/current/project/task-discovery.yaml
+uxtest_store/studies/.../runs/...
+uxtest_store/studies/.../analysis/findings.json
+...
+uxtest_store/comparisons/....html</div>
+    <p>The first three groups are captured output with machine-specific roots shortened. The final artifact names vary with the fixture id, date, and run suffix; the complete unshortened Northstar fixture output earlier shows the exact format.</p>
+    <p>A fixture can define personas, variants, devices, analysis, evaluation, reporting, and run retention together. Keep <code>max_concurrent_runs</code> low on public sites to avoid request bursts from one IP.</p>
+    <h3>A useful live-site shape</h3>
+    <pre><code>id: my-site-discovery
+name: My Site Discovery
+mode: live-site
+url_template: https://example.com/
+task: &gt;
+  Starting from the homepage, decide whether this product is relevant.
+  Find the most useful next item and explain what you would do next.
+success_criteria: &gt;
+  The visitor identifies relevant evidence and a concrete next action.
+personas: [academic-researcher]
+runs_per_persona: 1
+driver: edsl
+max_steps: 8
+max_concurrent_runs: 2
+analysis_driver: local
+eval_policy: report_only
+variants:
+  - {name: desktop, device: desktop}
+  - {name: mobile, device: iphone}</code></pre>
+  </section>
+
+  <section id="study"><h2><span>10.</span> Create a one-off study</h2>
+    <p>Use a one-off study when no fixture matches. A good task gives the persona a goal and context but does not prescribe the clicks. Success criteria should describe visible evidence, not a preferred interpretation.</p>
+    <pre><code>uxtest study new "Homepage discovery" \
+  --url "https://example.com/" \
+  --task "Decide whether this product fits your research workflow." \
+  --success-criteria "The visitor identifies evidence and a next action." \
+  --persona academic-researcher \
+  --runs-per-persona 1
+
+uxtest study run &lt;study-id&gt; --driver edsl \
+  --max-steps 8 --max-concurrent-runs 2
+uxtest analyze &lt;study-id&gt; --include-interrupted
+uxtest animate &lt;study-id&gt;
+uxtest uxr &lt;study-id&gt;</code></pre>
+    <div class="output not-run">uxtest_store/studies/2026-07-22-homepage-discovery
+
+After running:
+uxtest_store/studies/&lt;study-id&gt;/runs/&lt;run-id&gt;
+uxtest_store/studies/&lt;study-id&gt;/analysis/findings.json
+uxtest_store/studies/&lt;study-id&gt;/analysis/scores.json
+uxtest_store/studies/&lt;study-id&gt;/analysis/animations/index.html
+uxtest_store/studies/&lt;study-id&gt;/analysis/uxr_plan.md
+uxtest_store/studies/&lt;study-id&gt;/analysis/uxr_report.html
+uxtest_store/studies/&lt;study-id&gt;/analysis/human_validation_protocol.md</div>
+    <p>Only the first line was captured from this exact one-off command. The remaining commands require replacing <code>&lt;study-id&gt;</code> and performing browser inference; their displayed paths document the command contract rather than claiming an unperformed run.</p>
+    <div class="callout warn"><strong>Avoid leading tasks</strong>“Click Pricing, then choose Enterprise” tests obedience. “Determine whether this service fits your team’s budget and needs” tests the experience.</div>
+    <p>Use <code>--driver edsl</code> for synthetic decisions, <code>heuristic</code> for deterministic local behavior, and <code>scripted</code> for fixture-defined paths. Built-in devices are <code>desktop</code>, <code>iphone</code>, and <code>pixel</code>.</p>
+  </section>
+
+  <section id="authenticated"><h2><span>11.</span> Authenticated flows</h2>
+    <p>Make sign-in deterministic with <code>setup_steps</code>, then let EDSL take over for the actual research task. Secrets come from environment variables; sensitive typed values are redacted.</p>
+    <pre><code>env_file: secrets.env
+auth_state:
+  save: uxtest_store/auth/test-user.json
+setup_steps:
+  - {type: click, label: Log in}
+  - {type: type, name: email, env: TEST_USER_EMAIL, sensitive: true}
+  - {type: type, name: password, env: TEST_USER_PASSWORD, sensitive: true}
+  - {type: click, label: Continue}</code></pre>
+    <p>Later studies can use <code>auth_state: {load: uxtest_store/auth/test-user.json}</code>. Use staging accounts, static test OTPs, or a test bypass—never real user credentials. CAPTCHA and live MFA require a bypass or manual hook.</p>
+  </section>
+
+  <section id="evidence"><h2><span>12.</span> Inspect evidence in order</h2>
+    <p>Begin broad, then drill down. Comparison and technical evidence views expose patterns; <code>log.html</code> shows the full step mechanics; raw traces settle ambiguity. These artifacts inform the report-writing agent but do not replace its judgment.</p>
+    <ol>
+      <li><strong>Comparison:</strong> <code>uxtest_store/comparisons/&lt;name&gt;.html</code></li>
+      <li><strong>Evidence views:</strong> <code>analysis/report.html</code> and <code>analysis/uxr_report.html</code></li>
+      <li><strong>Step debugger:</strong> <code>analysis/log.html</code></li>
+      <li><strong>Structured summaries:</strong> <code>findings.json</code> and <code>scores.json</code></li>
+      <li><strong>Ground truth:</strong> run <code>trace.jsonl</code>, metadata, and screenshots</li>
+    </ol>
+    <pre><code>uxtest show &lt;study-id&gt; --json
+uxtest show &lt;study-id&gt; &lt;run-id&gt; --trace --json
+uxtest trace &lt;study-id&gt;
+uxtest trace &lt;study-id&gt; --edsl-jobs</code></pre>
+    <div class="output">The complete captured outputs for <code>show --json</code>, <code>show --trace --json</code>, and <code>trace</code> are displayed in steps 5 and 6 above.
+
+For this scripted run, the final command prints:
+No EDSL jobs found in traces.</div>
+    <p><code>log.html</code> is for debugging: it joins persona, scenario, screenshot, EDSL prompt, remote job, model response, attempted action, and browser result. Never infer a browser defect from model prose alone; check what the browser actually recorded.</p>
+  </section>
+
+  <section id="outcomes"><h2><span>13.</span> Read actions and endings correctly</h2>
+    <p>A click that stays on the same URL is not automatically a failure. Use <code>action_outcome</code> to distinguish navigation, a menu opening, an in-page state change, a scroll, a new tab, or no visible change.</p>
+    <table><thead><tr><th>Signal</th><th>Interpretation</th></tr></thead><tbody>
+      <tr><td class="kbd">url_navigation / new_tab</td><td>The action advanced to another document or context.</td></tr>
+      <tr><td class="kbd">menu_opened</td><td>A useful state change may have occurred without navigation.</td></tr>
+      <tr><td class="kbd">same_page_state_change</td><td>The page responded; inspect the before/after screenshots.</td></tr>
+      <tr><td class="kbd">no_visible_change</td><td>Candidate friction, an ineffective action, or an instrumentation gap.</td></tr>
+    </tbody></table>
+    <p>Use <code>stop_quality</code> to separate a resolved run from an agent that continued too long, looped, hit authentication, or never visibly advanced.</p>
+    <table><thead><tr><th>Stop quality</th><th>How to use it</th></tr></thead><tbody>
+      <tr><td class="kbd">done</td><td>The run reached a defensible resolution.</td></tr>
+      <tr><td class="kbd">enough_evidence_but_continued</td><td>Evidence may be useful; extra steps should not become extra friction findings.</td></tr>
+      <tr><td class="kbd">looping</td><td>Inspect repeated actions before attributing the loop to the interface.</td></tr>
+      <tr><td class="kbd">blocked_by_auth</td><td>Usually a study/setup limitation unless authentication is the task.</td></tr>
+      <tr><td class="kbd">blocked_by_no_visible_advance</td><td>Inspect action outcomes and screenshots for candidate interaction failure.</td></tr>
+      <tr><td class="kbd">unresolved / error</td><td>Preserve and disclose; do not count as ordinary success or failure.</td></tr>
+    </tbody></table>
+  </section>
+
+  <section id="report"><h2><span>14.</span> Hand evidence to the report writer</h2>
+    <p>Read the packaged writing guide before composing a stakeholder narrative. It defines evidence extraction, citation style, role boundaries, and the quality bar.</p>
+    <pre><code>uxtest docs show report-writer-agent
+uxtest report guide 2026-07-22-northstar-saas-fixture-flawed
+uxtest report template 2026-07-22-northstar-saas-fixture-flawed</code></pre>
+    <div class="output excerpt"># Report Writer Agent Guide
+...
+Structured evidence handoff for the coding agent that writes the final report.
+Target file: writeup/report.md
+The template response contains Markdown but writes no report file.</div>
+    <p>The package inventories and structures the evidence. The calling coding agent owns the final report.</p>
+    <div class="cards">
+      <div class="card"><span class="tag">Observe</span><h3>What the trace shows</h3><p>“Three desktop runs opened Resources before locating API evidence.”</p></div>
+      <div class="card"><span class="tag">Interpret</span><h3>What it may mean</h3><p>“This pattern suggests the API path may not match evaluators’ expectations.”</p></div>
+      <div class="card"><span class="tag">Recommend</span><h3>What to test next</h3><p>“Test an explicit API link with human technical evaluators.”</p></div>
+      <div class="card"><span class="tag">Scope</span><h3>What was measured</h3><p>State the personas, tasks, variants, devices, and number of runs so readers can interpret the result.</p></div>
+    </div>
+    <ul class="checklist"><li>Cite the run, step, screenshot, or artifact behind important claims.</li><li>Separate UX friction from trace-quality and agent-behavior problems.</li><li>Include interrupted, blocked, and unresolved runs in limitations.</li><li>Describe personas and devices; do not imply demographic representativeness.</li><li>Recommend validation proportional to the decision’s stakes.</li></ul>
+  </section>
+
+  <section id="advanced"><h2><span>15.</span> Advanced workflows</h2>
+    <div class="cards">
+      <div class="card"><span class="tag">Design</span><h3>Figma studies</h3><p>Use <code>uxtest figma doctor</code>, then import frames, generate a vision study, audit a prototype, or write an import report.</p></div>
+      <div class="card"><span class="tag">Human validation</span><h3>Screenshot surveys</h3><p><code>humanize-export</code> turns selected trace screenshots into a model-free Jobs package for <code>ep humanize</code>. It does not record human browsing.</p></div>
+      <div class="card"><span class="tag">Attention</span><h3>Saliency overlays</h3><p><code>saliency run</code> requires a real external saliency engine. uxtest will not fabricate maps.</p></div>
+      <div class="card"><span class="tag">Synthesis</span><h3>Rich trace agents</h3><p><code>agents export</code> materializes one EDSL Agent per run; <code>interview</code> asks follow-up questions of those evidence-rich agents.</p></div>
+    </div>
+    <pre><code># Human validation artifact (dry-run by default)
+uxtest humanize-export &lt;study-id&gt; --template task-discovery \
+  --screenshots representative --max-screenshots 8 \
+  --output ./humanize/jobs.ep
+
+# Inspect locally, then explicitly create the remote human survey
+ep inspect ./humanize/jobs.ep
+ep humanize create \
+  --jobs ./humanize/jobs.ep \
+  --scenario_method ordered \
+  --schema ./humanize/humanize_schema.json
+
+# Reusable EDSL agents from completed traces
+uxtest agents export &lt;study-id&gt;
+uxtest interview &lt;study-id&gt; \
+  --question "What evidence shaped your decision?"</code></pre>
+    <div class="output">humanize/jobs.ep
+humanize/humanize_schema.json
+humanize/jobs.manifest.json
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/agent_list.py
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/agent_list.manifest.json
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/agent_interview.py
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/agent_interview.manifest.json</div>
+    <p>The humanize Jobs package and generated interview scripts are safe to inspect first. Human-survey creation begins only with <code>ep humanize create</code>; interview inference begins only with its explicit <code>--launch</code> option. A run with four personas, two variants, and eight steps can create up to 64 remote decision jobs, so plan cost and latency before scaling.</p>
+  </section>
+
+  <section id="regression"><h2><span>16.</span> Regression and CI</h2>
+    <p>Use deterministic fixtures and explicit expected flaws for stable regression checks. Use EDSL studies when you want visitors to interpret the page and choose their own paths.</p>
+    <pre><code>uxtest eval &lt;study-id&gt; --expect expected_flaws.yaml \
+  --policy threshold --minimum-recovered-expected 2
+uxtest ci fixture-a.yaml fixture-b.yaml</code></pre>
+    <div class="output">uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/eval.json
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/eval.html
+uxtest_store/studies/.../runs/...
+uxtest_store/studies/.../analysis/findings.json
+...
+uxtest_store/comparisons/....html</div>
+    <p>The evaluation paths are captured verbatim. CI prints every generated run, analysis, evaluation, animation, and comparison path; the complete unabridged example appears under “Run both variants with one command.”</p>
+    <table><thead><tr><th>Policy</th><th>Best use</th></tr></thead><tbody><tr><td><code>strict</code></td><td>Deterministic local fixtures whose expected behavior is controlled.</td></tr><tr><td><code>threshold</code></td><td>Allow a defined recovery floor when some variation is acceptable.</td></tr><tr><td><code>report_only</code></td><td>Live-site and exploratory research where evidence matters more than gating.</td></tr></tbody></table>
+    <p>Generated evidence views are disposable. If analysis or rendering changes, regenerate them from retained traces instead of editing generated HTML by hand.</p>
+  </section>
+
+  <section id="debug"><h2><span>17.</span> Debugging ladder</h2>
+    <ol>
+      <li>Run <code>uxtest doctor</code>.</li>
+      <li>Check <code>uxtest status</code> and the study/run metadata.</li>
+      <li>Open or inspect <code>log.html</code>.</li>
+      <li>Compare the EDSL decision with the browser <code>action_outcome</code>.</li>
+      <li>Inspect before/after screenshots and raw trace events.</li>
+      <li>Check <code>stop_quality</code> before labeling a run successful or failed.</li>
+      <li>Verify remote job metadata with <code>uxtest trace &lt;id&gt; --edsl-jobs</code>.</li>
+    </ol>
+    <pre><code>rg -n '"outcome"|"action_recovery"|"gave_up"|"max_steps"' \
+  uxtest_store/studies/&lt;study-id&gt;
+rg -n '"action_outcome"|"no_visible_change"|"menu_opened"' \
+  uxtest_store/studies/&lt;study-id&gt;
+rg -n '"stop_signal"|"stop_quality"|"blocked_by_auth"' \
+  uxtest_store/studies/&lt;study-id&gt;</code></pre>
+    <div class="output">uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/runs/run-001-mobile-first-96f1/meta.json:11:  "outcome": "max_steps",
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/runs/run-001-mobile-first-96f1/trace.jsonl:4: ... "action_outcome": "no_visible_change" ...
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/runs/run-001-mobile-first-96f1/trace.jsonl:5: ... "action_outcome": "no_visible_change" ...
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/scores.json:15:  "stop_quality": {
+uxtest_store/studies/2026-07-22-northstar-saas-fixture-flawed/analysis/scores.json:16:    "enough_evidence_but_continued": 1</div>
+    <p>These lines are from the captured Northstar run. The two <code>no_visible_change</code> events and the final stop-quality classification explain why a raw <code>max_steps</code> outcome needs interpretation rather than being treated as simple task failure.</p>
+    <div class="callout warn"><strong>Do not repair evidence silently</strong>If a run exposes a runner bug, preserve the original trace, describe the defect, fix the system separately, and rerun under a new run identity.</div>
+  </section>
+
+  <section id="handoff"><h2><span>18.</span> Agent handoff checklist</h2>
+    <ul class="checklist"><li>The study type matches the decision being tested.</li><li>The task is goal-based and the success criteria are observable.</li><li>Personas and devices cover the important contrasts.</li><li>Concurrency is appropriate for the target site.</li><li>Secrets use test accounts and are redacted.</li><li>Raw traces and screenshots are retained as source evidence.</li><li>Action outcomes and stop quality were checked.</li><li>Findings cite the runs that produced them.</li><li>Failed runs and instrumentation gaps are recorded.</li><li>The next design or testing step is concrete.</li></ul>
+    <div class="callout"><strong>The governing principle</strong>Use <code>uxtest</code> to make UX hypotheses faster, more inspectable, and more reproducible. Let evidence—not fluent model narration—carry the conclusion.</div>
+  </section>
+
+  <footer><div class="footer-brand"><span class="mark">EP</span><strong>Expected Parrot</strong></div><p>Agent-first tutorial for <code>uxtest</code>. The packaged CLI documentation remains authoritative for exact commands and current capabilities: <code>uxtest docs show root</code>.</p></footer>
+</article></main>
+<div id="journey-modal" class="journey-modal" role="dialog" aria-modal="true" aria-label="Northstar journey tree" aria-hidden="true" tabindex="-1" onclick="if(event.target===this)closeJourney()">
+  <div class="journey-modal-bar"><strong>Northstar journey tree</strong><button id="journey-close" type="button" onclick="closeJourney()">Close</button></div>
+  <div class="journey-scroll"><img src="assets/northstar-journey.svg" alt="Full-size Northstar journey tree"></div>
+</div>
+<script>
+  var journeyOpener=null;
+  function openJourney(){var modal=document.getElementById('journey-modal');journeyOpener=document.activeElement;modal.classList.add('open');modal.setAttribute('aria-hidden','false');document.body.classList.add('modal-open');document.getElementById('journey-close').focus()}
+  function closeJourney(){var modal=document.getElementById('journey-modal');if(!modal.classList.contains('open'))return;modal.classList.remove('open');modal.setAttribute('aria-hidden','true');document.body.classList.remove('modal-open');if(journeyOpener)journeyOpener.focus()}
+  document.addEventListener('keydown',function(event){var modal=document.getElementById('journey-modal');if(event.key==='Escape')closeJourney();if(event.key==='Tab'&&modal.classList.contains('open')){event.preventDefault();document.getElementById('journey-close').focus()}});
+  (function(){var nav=document.querySelector('nav');var toggle=document.querySelector('.toc-toggle');toggle.addEventListener('click',function(){var open=nav.classList.toggle('open');toggle.setAttribute('aria-expanded',String(open));toggle.textContent=open?'Hide contents':'Show contents'});nav.querySelectorAll('a[href^="#"]').forEach(function(link){link.addEventListener('click',function(){if(innerWidth<=980){nav.classList.remove('open');toggle.setAttribute('aria-expanded','false');toggle.textContent='Show contents'}})})})();
+  (function(){var code=document.querySelector('#captured-run-envelope pre code');if(!code)return;try{var raw=JSON.parse(code.textContent);code.textContent=JSON.stringify({artifacts:[],command:'show',data:raw,error:null,messages:[],meta:{uxtest_version:'0.1.0'},ok:true,schema_version:1,stderr:null},null,2)}catch(e){}})();
+  document.querySelectorAll('code.syntax-html').forEach(function(code){var source=code.textContent;var fragment=document.createDocumentFragment();var pattern=/<!doctype[^>]*>|<!--[\s\S]*?-->|<\/?[A-Za-z][^>]*>/gi;var last=0;var match;while((match=pattern.exec(source))){fragment.appendChild(document.createTextNode(source.slice(last,match.index)));var token=document.createElement('span');token.className=/^<!doctype/i.test(match[0])?'html-doctype':'html-tag';token.textContent=match[0];fragment.appendChild(token);last=pattern.lastIndex}fragment.appendChild(document.createTextNode(source.slice(last)));code.replaceChildren(fragment)});
+  document.querySelectorAll('pre').forEach(function(pre){var button=document.createElement('button');button.className='copy';button.type='button';button.textContent='Copy';button.setAttribute('aria-label','Copy code');button.addEventListener('click',function(){navigator.clipboard.writeText(pre.querySelector('code').innerText).then(function(){button.textContent='Copied';setTimeout(function(){button.textContent='Copy'},1200)})});pre.appendChild(button)});
+  var links=[].slice.call(document.querySelectorAll('nav a[href^="#"]'));var sections=links.map(function(a){return document.querySelector(a.getAttribute('href'))}).filter(Boolean);
+  function update(){var doc=document.documentElement;var max=doc.scrollHeight-doc.clientHeight;document.getElementById('progress').style.width=(max?doc.scrollTop/max*100:0)+'%';var current=sections[0];sections.forEach(function(s){if(s.getBoundingClientRect().top<150)current=s});links.forEach(function(a){a.classList.toggle('active',current&&a.getAttribute('href')==='#'+current.id)})}
+  addEventListener('scroll',update,{passive:true});update();
+</script>
+</body>
+</html>

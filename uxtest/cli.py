@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
 import shutil
 import socket
@@ -23,19 +25,141 @@ from .store import Store, StoreError, default_new_store_root, find_store
 
 
 def main(argv: list[str] | None = None) -> None:
+    argv = list(sys.argv[1:] if argv is None else argv)
     parser = build_parser()
-    args = parser.parse_args(argv)
+    human_requested = "--human" in argv
+    parse_stdout = io.StringIO()
+    parse_stderr = io.StringIO()
     try:
-        args.func(args)
+        with contextlib.redirect_stdout(parse_stdout), contextlib.redirect_stderr(parse_stderr):
+            args = parser.parse_args(argv)
+    except SystemExit as exc:
+        if human_requested:
+            sys.stdout.write(parse_stdout.getvalue())
+            sys.stderr.write(parse_stderr.getvalue())
+            raise
+        text = parse_stdout.getvalue() or parse_stderr.getvalue()
+        envelope = _json_envelope(
+            ok=exc.code == 0,
+            command=_command_from_argv(argv),
+            stdout=text,
+            error=None if exc.code == 0 else {"type": "ArgumentError", "message": text.strip(), "exit_code": int(exc.code or 2)},
+        )
+        print(json.dumps(envelope, indent=2, sort_keys=True))
+        if exc.code:
+            raise SystemExit(exc.code) from exc
+        return
+
+    # Preserve argparse's normal version/help output when JSON was not requested.
+    sys.stdout.write(parse_stdout.getvalue())
+    sys.stderr.write(parse_stderr.getvalue())
+    envelope_requested = not args.human
+    if not envelope_requested:
+        try:
+            args.func(args)
+        except StoreError as exc:
+            print(f"uxtest: {exc}", file=sys.stderr)
+            raise SystemExit(exc.exit_code) from exc
+        return
+
+    # Commands with an existing structured JSON branch should use it even when
+    # the caller selected the global `uxtest --json ...` form.
+    if hasattr(args, "json"):
+        args.json = True
+
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            args.func(args)
     except StoreError as exc:
-        print(f"uxtest: {exc}", file=sys.stderr)
+        envelope = _json_envelope(
+            ok=False,
+            command=_command_name(args),
+            stdout=stdout.getvalue(),
+            stderr=stderr.getvalue(),
+            error={"type": type(exc).__name__, "message": str(exc), "exit_code": exc.exit_code},
+        )
+        print(json.dumps(envelope, indent=2, sort_keys=True))
         raise SystemExit(exc.exit_code) from exc
+    except Exception as exc:
+        envelope = _json_envelope(
+            ok=False,
+            command=_command_name(args),
+            stdout=stdout.getvalue(),
+            stderr=stderr.getvalue(),
+            error={"type": type(exc).__name__, "message": str(exc), "exit_code": 1},
+        )
+        print(json.dumps(envelope, indent=2, sort_keys=True))
+        raise SystemExit(1) from exc
+    envelope = _json_envelope(
+        ok=True,
+        command=_command_name(args),
+        stdout=stdout.getvalue(),
+        stderr=stderr.getvalue(),
+    )
+    print(json.dumps(envelope, indent=2, sort_keys=True))
+
+
+def _json_envelope(
+    *,
+    ok: bool,
+    command: str,
+    stdout: str = "",
+    stderr: str = "",
+    error: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    clean_stdout = stdout.rstrip("\n")
+    data: Any = None
+    parsed_json = False
+    if clean_stdout:
+        try:
+            data = json.loads(clean_stdout)
+            parsed_json = True
+        except json.JSONDecodeError:
+            data = {"stdout": clean_stdout}
+    lines = [line for line in clean_stdout.splitlines() if line.strip()]
+    artifacts = [] if parsed_json else [line for line in lines if _looks_like_artifact(line)]
+    messages = [] if parsed_json else [line for line in lines if line not in artifacts]
+    return {
+        "schema_version": 1,
+        "ok": ok,
+        "command": command,
+        "data": data,
+        "artifacts": artifacts,
+        "messages": messages,
+        "stderr": stderr.rstrip("\n") or None,
+        "error": error,
+        "meta": {"uxtest_version": __version__},
+    }
+
+
+def _looks_like_artifact(line: str) -> bool:
+    candidate = line.strip()
+    if not candidate or candidate.startswith(("http://", "https://")) or any(char.isspace() for char in candidate):
+        return False
+    return "/" in candidate or candidate.endswith((".json", ".yaml", ".yml", ".md", ".html", ".pdf", ".py"))
+
+
+def _command_name(args: argparse.Namespace) -> str:
+    parts = [str(args.command)]
+    for key, value in vars(args).items():
+        if key != "command" and key.endswith("_command") and value:
+            parts.append(str(value))
+    return " ".join(parts)
+
+
+def _command_from_argv(argv: list[str]) -> str:
+    positional = [item for item in argv if not item.startswith("-")]
+    return " ".join(positional[:2]) or "uxtest"
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="uxtest")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--store", help="Path to uxtest_store or its project root.")
+    parser.add_argument("--json", dest="agent_json", action="store_true", help="Return the default versioned JSON envelope (retained for compatibility).")
+    parser.add_argument("--human", action="store_true", help="Use human-readable terminal output instead of the default JSON envelope.")
     sub = parser.add_subparsers(dest="command", required=True)
 
     init = sub.add_parser("init", help="Create a uxtest_store store.")
@@ -114,6 +238,26 @@ def build_parser() -> argparse.ArgumentParser:
     trace.add_argument("--edsl-jobs", action="store_true", help="Show EDSL remote job metadata instead of step summaries.")
     trace.set_defaults(func=cmd_trace)
 
+    image_review = sub.add_parser("image-review", help="Prepare and ingest EDSL screenshot-review jobs.")
+    image_review_sub = image_review.add_subparsers(dest="image_review_command", required=True)
+    image_captures = image_review_sub.add_parser("captures", help="List captured screenshots and their content-derived references.")
+    image_captures.set_defaults(func=cmd_image_review_captures)
+    image_prepare = image_review_sub.add_parser("prepare", help="Write a jobs.ep package containing run screenshots as FileStores.")
+    image_prepare.add_argument("id", nargs="?", help="Study id. Omit with --latest.")
+    image_prepare.add_argument("--run", dest="run_id", help="Review one run instead of every run in the study.")
+    image_prepare.add_argument("--latest", action="store_true", help="Use the newest captured run, avoiding manual study/run id extraction.")
+    image_prepare.add_argument("--capture", help="Use a capture hash from `image-review captures`; abbreviated hashes are accepted.")
+    image_prepare.add_argument("--model", default="gpt-4o")
+    image_prepare.set_defaults(func=cmd_image_review_prepare)
+    image_run = image_review_sub.add_parser("run", help="Prepare, execute through ep, and ingest one capture without handling paths.")
+    image_run.add_argument("--capture", required=True, help="Capture hash from `image-review captures`; abbreviated hashes are accepted.")
+    image_run.add_argument("--model", default="gpt-4o")
+    image_run.set_defaults(func=cmd_image_review_run)
+    image_ingest = image_review_sub.add_parser("ingest", help="Store and normalize an EDSL results.ep package.")
+    image_ingest.add_argument("id", help="Study id.")
+    image_ingest.add_argument("--results", type=Path, help="Results package; defaults to analysis/image_review/results.ep.")
+    image_ingest.set_defaults(func=cmd_image_review_ingest)
+
     analyze = sub.add_parser("analyze", help="Analyze a study and write analysis JSON.")
     analyze.add_argument("id")
     analyze.add_argument("--include-interrupted", action="store_true")
@@ -124,12 +268,14 @@ def build_parser() -> argparse.ArgumentParser:
     uxr.add_argument("id")
     uxr.set_defaults(func=cmd_uxr)
 
-    report = sub.add_parser("report", help="Generate a narrative report from study traces and analysis.")
-    report.add_argument("id")
-    report.add_argument("--format", action="append", help="Report format: md, html, pdf, or comma-separated list. Defaults to md.")
-    report.add_argument("--output-dir", type=Path, help="Output directory. Defaults to the study analysis directory.")
-    report.add_argument("--no-embed-resources", action="store_true", help="Do not ask pandoc to embed resources in HTML output.")
-    report.set_defaults(func=cmd_report)
+    report = sub.add_parser("report", help="Hand off evidence and structure to the agent writing the final report.")
+    report_sub = report.add_subparsers(dest="report_command", required=True)
+    report_guide = report_sub.add_parser("guide", help="Return available evidence, report structure, and writing rules.")
+    report_guide.add_argument("id")
+    report_guide.set_defaults(func=cmd_report_guide)
+    report_template = report_sub.add_parser("template", help="Return a study-specific Markdown scaffold without writing a report.")
+    report_template.add_argument("id")
+    report_template.set_defaults(func=cmd_report_template)
 
     batch = sub.add_parser("batch", help="Run fixture batches and synthesize cross-study reports.")
     batch_sub = batch.add_subparsers(dest="batch_command", required=True)
@@ -147,7 +293,7 @@ def build_parser() -> argparse.ArgumentParser:
     batch_run.add_argument("--open", action="store_true", help="Open per-fixture comparison reports while running.")
     batch_run.set_defaults(func=cmd_batch_run)
 
-    humanize_export = sub.add_parser("humanize-export", help="Export an EDSL humanize script from study screenshots.")
+    humanize_export = sub.add_parser("humanize-export", help="Export an EDSL Jobs package for `ep humanize` from study screenshots.")
     humanize_export.add_argument("id")
     humanize_export.add_argument(
         "--template",
@@ -162,8 +308,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Which trace screenshots to include.",
     )
     humanize_export.add_argument("--max-screenshots", type=int, default=8)
-    humanize_export.add_argument("--output", type=Path, help="Output Python script path. Defaults to the study analysis directory.")
-    humanize_export.add_argument("--survey-name", help="Default human survey name embedded in the generated script.")
+    humanize_export.add_argument("--output", type=Path, help="Output Jobs .ep path. Defaults to analysis/humanize_jobs.ep.")
+    humanize_export.add_argument("--survey-name", help="Human survey name recorded in the export manifest.")
     humanize_export.set_defaults(func=cmd_humanize_export)
 
     agents = sub.add_parser("agents", help="Export rich EDSL agent lists from completed runs.")
@@ -212,6 +358,11 @@ def build_parser() -> argparse.ArgumentParser:
     animate.add_argument("--open", action="store_true", help="Open the generated animation index.")
     animate.set_defaults(func=cmd_animate)
 
+    journey = sub.add_parser("journey", help="Generate an image-backed tree of browser paths across study runs.")
+    journey.add_argument("id", help="Study id.")
+    journey.add_argument("--open", action="store_true", help="Open the generated journey tree in a browser.")
+    journey.set_defaults(func=cmd_journey)
+
     eval_parser = sub.add_parser("eval", help="Evaluate recovered trace patterns against expected flaws.")
     eval_parser.add_argument("id")
     eval_parser.add_argument("--expect", type=Path, help="YAML file listing expected flaw ids.")
@@ -220,6 +371,62 @@ def build_parser() -> argparse.ArgumentParser:
     eval_parser.add_argument("--minimum-recovered-expected", type=int, default=1)
     eval_parser.add_argument("--open", action="store_true", help="Open the generated eval report.")
     eval_parser.set_defaults(func=cmd_eval)
+
+    fixture = sub.add_parser("fixture", help="Build, register, inspect, validate, and run fixture plans.")
+    fixture_sub = fixture.add_subparsers(dest="fixture_command", required=True)
+    fixture_new = fixture_sub.add_parser("new", help="Create and register a fixture plan.")
+    fixture_new.add_argument("name", help="Registered fixture id.")
+    fixture_new.add_argument("--from-json", type=Path, help="Initialize from a JSON object file; use - for stdin.")
+    fixture_new.add_argument("--url-template")
+    fixture_new.add_argument("--task")
+    fixture_new.add_argument("--success-criteria")
+    fixture_new.add_argument("--persona", action="append", dest="personas")
+    fixture_new.add_argument("--variant", action="append", dest="variants")
+    fixture_new.add_argument("--driver", choices=["edsl", "heuristic", "scripted"])
+    fixture_new.add_argument("--device", choices=["desktop", "iphone", "pixel"])
+    fixture_new.add_argument("--force", action="store_true")
+    fixture_new.set_defaults(func=cmd_fixture_new)
+    fixture_register = fixture_sub.add_parser("register", help="Copy a fixture YAML, JSON, or directory into the store.")
+    fixture_register.add_argument("source", type=Path)
+    fixture_register.add_argument("--name")
+    fixture_register.add_argument("--plan", help="Plan filename when SOURCE is a directory, for example regression-edsl.yaml.")
+    fixture_register.add_argument("--force", action="store_true")
+    fixture_register.set_defaults(func=cmd_fixture_register)
+    fixture_list = fixture_sub.add_parser("list", help="List registered fixture plans.")
+    fixture_list.add_argument("--json", action="store_true")
+    fixture_list.set_defaults(func=cmd_fixture_list)
+    fixture_show = fixture_sub.add_parser("show", help="Show a registered fixture plan.")
+    fixture_show.add_argument("name")
+    fixture_show.add_argument("--json", action="store_true")
+    fixture_show.set_defaults(func=cmd_fixture_show)
+    fixture_path_parser = fixture_sub.add_parser("path", help="Print a registered fixture path.")
+    fixture_path_parser.add_argument("name")
+    fixture_path_parser.set_defaults(func=cmd_fixture_path)
+    fixture_validate = fixture_sub.add_parser("validate", help="Validate a registered fixture without running it.")
+    fixture_validate.add_argument("name")
+    fixture_validate.add_argument("--json", action="store_true")
+    fixture_validate.set_defaults(func=cmd_fixture_validate)
+    fixture_set = fixture_sub.add_parser("set", help="Set a fixture field using a dot-separated key.")
+    fixture_set.add_argument("name")
+    fixture_set.add_argument("key")
+    fixture_set.add_argument("value")
+    fixture_set.add_argument("--json-value", action="store_true", help="Parse value as JSON, for lists and objects.")
+    fixture_set.set_defaults(func=cmd_fixture_set)
+    fixture_persona = fixture_sub.add_parser("persona", help="Add a persona to a fixture.")
+    fixture_persona.add_argument("name", help="Registered fixture id.")
+    fixture_persona.add_argument("persona", help="Persona name to add.")
+    fixture_persona.set_defaults(func=cmd_fixture_persona)
+    fixture_variant = fixture_sub.add_parser("variant", help="Add a variant to a fixture.")
+    fixture_variant.add_argument("name", help="Registered fixture id.")
+    fixture_variant.add_argument("variant", help="Variant name to add.")
+    fixture_variant.add_argument("--url")
+    fixture_variant.add_argument("--driver", choices=["edsl", "heuristic", "scripted"])
+    fixture_variant.add_argument("--device", choices=["desktop", "iphone", "pixel"])
+    fixture_variant.set_defaults(func=cmd_fixture_variant)
+    fixture_run = fixture_sub.add_parser("run", help="Validate and run a registered fixture.")
+    fixture_run.add_argument("name")
+    fixture_run.add_argument("--open", action="store_true")
+    fixture_run.set_defaults(func=cmd_fixture_run)
 
     ci = sub.add_parser("ci", help="Run one or more fixture regression specs.")
     ci.add_argument("fixtures", nargs="+", type=Path, help="Fixture YAML file(s) to run.")
@@ -459,6 +666,7 @@ def cmd_status(args: argparse.Namespace) -> None:
         print(json.dumps(status, indent=2, sort_keys=True))
         return
     print(f"Store: {status['store']}")
+    print(f"Fixtures: {status.get('fixtures', 0)}")
     print(f"Studies: {status['studies']}")
     print(f"Runs: {status['runs']}")
     print(f"Incomplete runs: {status['incomplete_runs']}")
@@ -524,6 +732,45 @@ def cmd_trace(args: argparse.Namespace) -> None:
                 print(f"    thinking: {step['thinking']}")
 
 
+def cmd_image_review_prepare(args: argparse.Namespace) -> None:
+    from .image_review import latest_image_review_target, prepare_image_review, resolve_image_capture
+
+    store = find_store(override=args.store)
+    selectors = int(bool(args.latest)) + int(bool(args.capture)) + int(bool(args.id or args.run_id))
+    if selectors > 1:
+        raise StoreError("Use one selector: --latest, --capture, or explicit study/run ids.", exit_code=2)
+    if args.latest:
+        study_id, run_id = latest_image_review_target(store)
+    elif args.capture:
+        study_id, run_id = resolve_image_capture(store, args.capture)
+    elif args.id:
+        study_id, run_id = args.id, args.run_id
+    else:
+        raise StoreError("Provide a study id or use --latest.", exit_code=2)
+    print(json.dumps(prepare_image_review(store, study_id, run_id=run_id, model=args.model), indent=2, sort_keys=True))
+
+
+def cmd_image_review_captures(args: argparse.Namespace) -> None:
+    from .image_review import list_image_captures
+
+    store = find_store(override=args.store)
+    print(json.dumps(list_image_captures(store), indent=2, sort_keys=True))
+
+
+def cmd_image_review_run(args: argparse.Namespace) -> None:
+    from .image_review import run_image_review
+
+    store = find_store(override=args.store)
+    print(json.dumps(run_image_review(store, args.capture, model=args.model), indent=2, sort_keys=True))
+
+
+def cmd_image_review_ingest(args: argparse.Namespace) -> None:
+    from .image_review import ingest_image_review
+
+    store = find_store(override=args.store)
+    print(json.dumps(ingest_image_review(store, args.id, results_path=args.results), indent=2, sort_keys=True))
+
+
 def cmd_analyze(args: argparse.Namespace) -> None:
     from .analyze import analyze_study
 
@@ -562,19 +809,18 @@ def cmd_uxr(args: argparse.Namespace) -> None:
     print(protocol_path.relative_to(store.root))
 
 
-def cmd_report(args: argparse.Namespace) -> None:
-    from .narrative_report import write_narrative_report
+def cmd_report_guide(args: argparse.Namespace) -> None:
+    from .report_handoff import report_guidance
 
     store = find_store(override=args.store)
-    paths = write_narrative_report(
-        store,
-        args.id,
-        formats=args.format,
-        output_dir=args.output_dir,
-        embed_resources=not args.no_embed_resources,
-    )
-    for path in paths:
-        print(path.relative_to(store.root) if _is_relative_to(path, store.root) else path)
+    print(json.dumps(report_guidance(store, args.id), indent=2, sort_keys=True))
+
+
+def cmd_report_template(args: argparse.Namespace) -> None:
+    from .report_handoff import report_template
+
+    store = find_store(override=args.store)
+    print(json.dumps(report_template(store, args.id), indent=2, sort_keys=True))
 
 
 def cmd_batch_report(args: argparse.Namespace) -> None:
@@ -613,7 +859,7 @@ def cmd_humanize_export(args: argparse.Namespace) -> None:
     from .humanize_export import export_humanize_survey
 
     store = find_store(override=args.store)
-    script_path, manifest_path = export_humanize_survey(
+    jobs_path, schema_path, manifest_path = export_humanize_survey(
         store,
         args.id,
         template=args.template,
@@ -622,8 +868,31 @@ def cmd_humanize_export(args: argparse.Namespace) -> None:
         output=args.output,
         survey_name=args.survey_name,
     )
-    print(script_path.relative_to(store.root) if _is_relative_to(script_path, store.root) else script_path)
-    print(manifest_path.relative_to(store.root) if _is_relative_to(manifest_path, store.root) else manifest_path)
+    display = lambda path: str(path.relative_to(store.root) if _is_relative_to(path, store.root) else path)
+    jobs_display = display(jobs_path)
+    schema_display = display(schema_path)
+    manifest_display = display(manifest_path)
+    if args.human:
+        print(jobs_display)
+        print(schema_display)
+        print(manifest_display)
+        return
+    print(
+        json.dumps(
+            {
+                "study_id": args.id,
+                "jobs_path": jobs_display,
+                "schema_path": schema_display,
+                "manifest_path": manifest_display,
+                "next_commands": [
+                    f"ep inspect {jobs_display}",
+                    f"ep humanize create --jobs {jobs_display} --scenario_method ordered --schema {schema_display}",
+                ],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
 
 
 def cmd_agents_export(args: argparse.Namespace) -> None:
@@ -697,6 +966,16 @@ def cmd_animate(args: argparse.Namespace) -> None:
         subprocess.run(["open", str(index_path)], check=False)
 
 
+def cmd_journey(args: argparse.Namespace) -> None:
+    from .journey import generate_journey_tree
+
+    store = find_store(override=args.store)
+    index_path = generate_journey_tree(store, args.id)
+    print(index_path.relative_to(store.root) if _is_relative_to(index_path, store.root) else index_path)
+    if args.open:
+        subprocess.run(["open", str(index_path)], check=False)
+
+
 def cmd_eval(args: argparse.Namespace) -> None:
     from .eval import evaluate_study
 
@@ -713,6 +992,140 @@ def cmd_eval(args: argparse.Namespace) -> None:
     print(html_path.relative_to(store.root))
     if args.open:
         subprocess.run(["open", str(html_path)], check=False)
+
+
+def cmd_fixture_new(args: argparse.Namespace) -> None:
+    from .fixture_config import create_fixture
+
+    store = _fixture_store(args, create=True)
+    path = create_fixture(
+        store,
+        args.name,
+        source=args.from_json,
+        url_template=args.url_template,
+        task=args.task,
+        success_criteria=args.success_criteria,
+        personas=args.personas,
+        variants=args.variants,
+        driver=args.driver,
+        device=args.device,
+        force=args.force,
+    )
+    print(path.relative_to(store.root))
+
+
+def cmd_fixture_register(args: argparse.Namespace) -> None:
+    from .fixture_config import register_fixture
+
+    store = _fixture_store(args, create=True)
+    path = register_fixture(store, args.source, name=args.name, plan=args.plan, force=args.force)
+    print(path.relative_to(store.root))
+
+
+def cmd_fixture_list(args: argparse.Namespace) -> None:
+    from .fixture_config import list_fixtures
+
+    store = _fixture_store(args)
+    fixtures = list_fixtures(store)
+    if args.json:
+        print(json.dumps(fixtures, indent=2, sort_keys=True))
+        return
+    if not fixtures:
+        print("No registered fixtures.")
+        return
+    for fixture in fixtures:
+        variants = ", ".join(fixture["variants"]) or "no variants"
+        print(f"{fixture['id']}  {variants}  {Path(fixture['path']).relative_to(store.root)}")
+
+
+def cmd_fixture_show(args: argparse.Namespace) -> None:
+    from .fixture_config import fixture_path
+    from .store import read_yaml
+
+    store = _fixture_store(args)
+    path = fixture_path(store, args.name)
+    if args.json:
+        print(json.dumps(read_yaml(path), indent=2, sort_keys=True))
+        return
+    print(path.read_text(encoding="utf-8"), end="")
+
+
+def cmd_fixture_path(args: argparse.Namespace) -> None:
+    from .fixture_config import fixture_path
+
+    store = _fixture_store(args)
+    print(fixture_path(store, args.name).relative_to(store.root))
+
+
+def cmd_fixture_validate(args: argparse.Namespace) -> None:
+    from .fixture_config import fixture_path, validate_fixture
+    from .store import read_yaml
+
+    store = _fixture_store(args)
+    path = fixture_path(store, args.name)
+    errors = validate_fixture(read_yaml(path))
+    result = {"fixture": args.name, "path": str(path.relative_to(store.root)), "valid": not errors, "errors": errors}
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    elif errors:
+        for error in errors:
+            print(f"error: {error}")
+    else:
+        print(f"Fixture {args.name!r} is valid: {path.relative_to(store.root)}")
+    if errors:
+        raise StoreError(f"Fixture {args.name!r} is invalid ({len(errors)} errors).", exit_code=2)
+
+
+def cmd_fixture_set(args: argparse.Namespace) -> None:
+    from .fixture_config import set_fixture_value
+
+    store = _fixture_store(args)
+    path = set_fixture_value(store, args.name, args.key, args.value, json_value=args.json_value)
+    print(path.relative_to(store.root))
+
+
+def cmd_fixture_persona(args: argparse.Namespace) -> None:
+    from .fixture_config import add_persona
+
+    store = _fixture_store(args)
+    path = add_persona(store, args.name, args.persona)
+    print(path.relative_to(store.root))
+
+
+def cmd_fixture_variant(args: argparse.Namespace) -> None:
+    from .fixture_config import add_variant
+
+    store = _fixture_store(args)
+    path = add_variant(store, args.name, args.variant, url=args.url, driver=args.driver, device=args.device)
+    print(path.relative_to(store.root))
+
+
+def cmd_fixture_run(args: argparse.Namespace) -> None:
+    from .fixture_config import fixture_path, validate_fixture
+    from .fixtures import run_fixture
+    from .store import read_yaml
+
+    store = _fixture_store(args)
+    path = fixture_path(store, args.name)
+    errors = validate_fixture(read_yaml(path))
+    if errors:
+        raise StoreError(f"Fixture {args.name!r} is invalid: " + "; ".join(errors), exit_code=2)
+    result = run_fixture(store, path, open_report=args.open)
+    for artifact in result["artifacts"]:
+        print(artifact.relative_to(store.root))
+    for pruned in result.get("pruned_runs") or []:
+        print(f"pruned {pruned.relative_to(store.root)}")
+
+
+def _fixture_store(args: argparse.Namespace, *, create: bool = False) -> Store:
+    try:
+        return find_store(override=args.store)
+    except StoreError as exc:
+        if not create or exc.exit_code != 3:
+            raise
+        store = Store.init(default_new_store_root(), project_name="uxtest-fixtures")
+        print(f"Initialized {store.path}")
+        return store
 
 
 def cmd_ci(args: argparse.Namespace) -> None:

@@ -4,35 +4,32 @@ import json
 from pathlib import Path
 
 from uxtest.humanize_export import collect_screenshot_scenarios, export_humanize_survey
+from uxtest.cli import main
 from uxtest.store import Store
 
 
-def test_humanize_export_writes_script_and_manifest(tmp_path):
+def test_humanize_export_writes_jobs_schema_and_manifest(tmp_path):
     store, study_id = _store_with_trace_screenshots(tmp_path)
 
-    script_path, manifest_path = export_humanize_survey(
+    jobs_path, schema_path, manifest_path = export_humanize_survey(
         store,
         study_id,
         template="conversion",
         screenshots="representative",
         max_screenshots=2,
+        output=tmp_path / "handoff" / "jobs.ep",
     )
 
-    script = script_path.read_text(encoding="utf-8")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
-    assert "survey.by(scenarios).humanize" in script
-    assert "scenario_list_method='ordered'" in script
-    assert "QuestionMultipleChoice" in script
-    assert "question_name='target_path'" in script
-    assert "question_options='{{ scenario.choice_options }}'" in script
-    assert "QuestionLinearScale" in script
-    assert "HUMANIZE_SCHEMA" in script
-    assert "max-width: min(100%, 760px)" in script
-    assert "humanize_schema=HUMANIZE_SCHEMA" in script
-    assert "Dry run only" in script
+    assert jobs_path == tmp_path / "handoff" / "jobs.ep"
+    assert jobs_path.exists()
+    assert schema_path == tmp_path / "handoff" / "humanize_schema.json"
+    assert "max-width: min(100%, 760px)" in schema_path.read_text(encoding="utf-8")
     assert manifest["template"] == "conversion"
     assert manifest["scenario_count"] == 2
+    assert manifest["scenario_method"] == "ordered"
+    assert manifest["create_command"].startswith("ep humanize create --jobs")
     assert manifest["scenarios"][0]["screenshot"].endswith("step-001.png")
     assert "Get a demo (button)" in manifest["scenarios"][0]["choice_options"]
 
@@ -50,6 +47,27 @@ def test_collect_screenshot_scenarios_supports_first_last(tmp_path):
 
     assert [scenario.selection_reason for scenario in scenarios] == ["first", "last"]
     assert [scenario.step for scenario in scenarios] == [1, 2]
+
+
+def test_humanize_export_cli_returns_paths_for_ep(tmp_path, monkeypatch, capsys):
+    store, study_id = _store_with_trace_screenshots(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    main(
+        [
+            "--store",
+            str(store.root),
+            "humanize-export",
+            study_id,
+            "--output",
+            "humanize/jobs.ep",
+        ]
+    )
+
+    data = json.loads(capsys.readouterr().out)["data"]
+    assert data["jobs_path"] == "humanize/jobs.ep"
+    assert data["schema_path"] == "humanize/humanize_schema.json"
+    assert data["next_commands"][0] == "ep inspect humanize/jobs.ep"
 
 
 def _store_with_trace_screenshots(tmp_path: Path) -> tuple[Store, str]:

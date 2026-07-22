@@ -30,6 +30,39 @@ uxtest examples list
 uxtest figma doctor
 ```
 
+Every command returns the same versioned JSON envelope by default, including
+commands that previously printed prose or artifact paths. This makes the CLI
+safe for agents to consume without remembering command-specific output modes:
+
+```bash
+uxtest status
+uxtest fixture run homepage-discovery
+uxtest docs show root
+```
+
+Use global `--human` for terminal-oriented presentation, for example
+`uxtest --human study list`. The older global and command-specific `--json`
+flags remain accepted for compatibility but are no longer necessary. The schema is:
+
+```json
+{
+  "schema_version": 1,
+  "ok": true,
+  "command": "status",
+  "data": {},
+  "artifacts": [],
+  "messages": [],
+  "stderr": null,
+  "error": null,
+  "meta": {"uxtest_version": "0.1.0"}
+}
+```
+
+When stdout is already JSON, `data` contains that parsed value. Otherwise it is
+`{"stdout": "..."}`. Printed file paths are also collected in `artifacts`.
+Failures keep the envelope and set `ok: false` with `error.type`,
+`error.message`, and `error.exit_code`; the process still exits nonzero.
+
 Use `docs show` when you need instructions in the current terminal context:
 
 ```bash
@@ -40,6 +73,52 @@ uxtest docs show information-architecture
 uxtest docs show study-types
 uxtest docs show spec
 ```
+
+## EDSL Screenshot Review
+
+Browser navigation and visual issue detection are separate jobs. After a study
+has captured screenshots, list the captures and run one by hash:
+
+```bash
+uxtest image-review captures
+uxtest image-review run --capture <capture-hash>
+```
+
+Capture ids are SHA-256 references and may be abbreviated to seven or more
+unambiguous characters. `image-review run` prepares `jobs.ep`, invokes EDSL's
+`ep run` with the matching `results.ep` destination, and ingests the findings.
+Both packages remain inspectable without requiring the caller to handle paths.
+
+For manual control, use `prepare`, execute its returned `next_command`, and ingest:
+
+```bash
+ep run uxtest_store/studies/<study-id>/analysis/image_review/jobs.ep \
+  --output uxtest_store/studies/<study-id>/analysis/image_review/results.ep
+uxtest image-review ingest <study-id>
+```
+
+Each screenshot is stored in the job as an EDSL `FileStore`. The question asks
+the image model for structured clipping, truncation, overflow, overlap,
+contrast, missing-content, and responsive-layout findings. Ingestion writes
+`analysis/image_review/findings.json` and returns its findings in the standard
+uxtest JSON envelope. Use `--model` on `prepare` to choose another vision model.
+
+## Journey Trees
+
+Generate an image-backed path tree from the screenshots and actions already
+recorded in a study:
+
+```bash
+uxtest journey <study-id>
+uxtest journey <study-id> --open
+```
+
+The command writes a self-contained `analysis/journey/journey.svg` and an HTML
+viewer. Screenshots are embedded in the SVG, so reports can load it as one
+portable image. Shared prefixes across runs
+are merged; different actions or outcomes become branches. Each node shows the
+captured screenshot, action, source and destination URL, browser outcome, and
+supporting run ids. It does not rerun the browser or invoke EDSL.
 
 Use `docs path` when another tool needs a filesystem path:
 
@@ -185,7 +264,8 @@ uxtest --help
 uxtest doctor
 ```
 
-EDSL is a normal PyPI dependency. Do not depend on a local EDSL checkout path.
+EDSL is pinned to an upstream Git revision that provides the current `ep` CLI
+and `.ep` package support. Do not depend on a developer's local checkout path.
 Remote inference credentials are expected in `.env` or the environment. Normal
 browser runs use EDSL remote inference and should not require a local OpenAI API
 key.
@@ -213,6 +293,53 @@ Raw run traces are the source of truth. Reports are derived and can be
 regenerated.
 
 ## Run A Bundled Fixture
+
+Fixtures can be first-class registered plans under
+`uxtest_store/fixtures/<fixture-id>/fixture.yaml`. Build one incrementally:
+
+```bash
+uxtest fixture new homepage-discovery \
+  --url-template "https://example.com/?variant={variant}" \
+  --task "Decide what this product does and choose a useful next step." \
+  --success-criteria "The visitor identifies a relevant product area." \
+  --persona mobile-first \
+  --variant desktop \
+  --driver edsl \
+  --device desktop
+uxtest fixture persona homepage-discovery low-confidence
+uxtest fixture variant homepage-discovery mobile --device iphone
+uxtest fixture set homepage-discovery max_steps 8
+uxtest fixture validate homepage-discovery
+uxtest fixture show homepage-discovery
+uxtest fixture run homepage-discovery
+```
+
+Use `--json-value` to set a list or object:
+
+```bash
+uxtest fixture set homepage-discovery overrides '{"model":"gpt-4o"}' --json-value
+```
+
+Create a fixture from a JSON object instead:
+
+```bash
+uxtest fixture new homepage-discovery --from-json fixture.json
+# Or read JSON from stdin:
+generate-fixture-json | uxtest fixture new homepage-discovery --from-json -
+```
+
+Register an existing YAML, JSON, or fixture directory. Directory registration
+copies companion servers, static assets, and expected-flaw files with the plan:
+
+```bash
+uxtest fixture register ./my-fixture --name homepage-discovery
+uxtest fixture list
+uxtest fixture path homepage-discovery
+```
+
+`fixture run` validates and runs a registered fixture by id. The older
+`uxtest ci ./path/to/fixture.yaml` interface remains supported for repositories
+that manage fixture paths directly.
 
 Copy a fixture into your workspace before editing it:
 
@@ -362,7 +489,9 @@ Use `log.html` to debug the system. It shows step-level details: persona,
 scenario, screenshots, EDSL prompts, remote job metadata, model answers, and
 browser action results.
 
-Use `report.html`, `uxr_report.html`, and comparison reports to review findings.
+Use `report.html` as a deterministic technical evidence dashboard. It is not the
+final stakeholder narrative. Use `uxr_report.html` and comparison reports as
+additional evidence views.
 
 Use raw traces when the reports look wrong:
 
@@ -376,17 +505,18 @@ rg -n '"action_outcome"|"no_visible_change"|"menu_opened"|"same_page_state_chang
 rg -n '"stop_signal"|"stop_quality"|"enough_evidence_but_continued"|"blocked_by_auth"' uxtest_store/studies/<study-id>
 ```
 
-Generate a narrative report when the user wants a stakeholder-readable summary
-instead of the technical evidence report:
+Hand the evidence and a study-specific structure to the coding agent that will
+write the stakeholder report:
 
 ```bash
-uxtest report <study-id>
-uxtest report <study-id> --format html
-uxtest report <study-id> --format md,html,pdf
+uxtest report guide <study-id>
+uxtest report template <study-id>
 ```
 
-The report command reads existing traces, screenshots, findings, and scores. It
-writes `analysis/narrative_report.md` by default and uses pandoc for HTML/PDF.
+`report guide` returns the available evidence paths, recommended sections,
+writing rules, and target file. `report template` returns a populated Markdown
+scaffold. Neither command writes the final report; the calling agent normally
+writes `writeup/report.md` in its own study structure.
 
 When a coding or research agent is writing the final narrative itself, read the
 packaged report-writing guide first:
@@ -597,58 +727,55 @@ Use this workflow for design-stage questions:
 ## Export A Human Screenshot Survey
 
 Use `humanize-export` when you want to validate synthetic findings with human
-respondents through EDSL `humanize()`. The exporter does not record human
-browser sessions. It turns selected `uxtest` screenshots into an EDSL survey
-script that humans can answer.
+respondents through the native `ep humanize` CLI. The exporter does not record
+human browser sessions. It turns selected `uxtest` screenshots into a
+model-free EDSL Jobs package that humans can answer.
 
 ```bash
 uxtest humanize-export <study-id> \
   --template task-discovery \
   --screenshots representative \
-  --max-screenshots 8
+  --max-screenshots 8 \
+  --output ./humanize/jobs.ep
 ```
 
 The command writes:
 
 ```text
-uxtest_store/studies/<study-id>/analysis/humanize_survey.py
-uxtest_store/studies/<study-id>/analysis/humanize_survey.manifest.json
+./humanize/jobs.ep
+./humanize/humanize_schema.json
+./humanize/jobs.manifest.json
 ```
 
-The generated script is safe by default:
+Inspect the package locally before creating anything remote:
 
 ```bash
-python uxtest_store/studies/<study-id>/analysis/humanize_survey.py
+ep inspect ./humanize/jobs.ep
 ```
 
-It prints the study and scenario count without launching anything. To create
-the human survey on Expected Parrot, run:
+To create the human survey on Expected Parrot, use EDSL’s CLI directly:
 
 ```bash
-python uxtest_store/studies/<study-id>/analysis/humanize_survey.py --launch
+ep humanize create \
+  --jobs ./humanize/jobs.ep \
+  --scenario_method ordered \
+  --schema ./humanize/humanize_schema.json
 ```
 
-The generated script uses EDSL's `humanize_schema` to control human-survey
-presentation. In the script, look for:
+The exported schema controls human-survey presentation. In
+`humanize_schema.json`, look for:
 
-```python
-HUMANIZE_SCHEMA = {
+```json
+{
     "survey": {
         "custom_css": "..."
     }
 }
 ```
 
-When `--launch` is used, the script passes that schema to EDSL:
-
-```python
-survey.by(scenarios).humanize(
-    human_survey_name=args.name,
-    scenario_list_method="ordered",
-    survey_visibility=args.visibility,
-    humanize_schema=HUMANIZE_SCHEMA,
-)
-```
+`ep humanize create` passes that schema alongside the Jobs package. The command
+returns the human survey identifier used by `ep humanize status`, `preview`,
+and `responses`.
 
 The default exporter CSS constrains screenshots so they do not dominate the
 survey page:
@@ -664,8 +791,8 @@ img {
 }
 ```
 
-Edit `HUMANIZE_SCHEMA["survey"]["custom_css"]` in the generated script before
-launching if you need smaller screenshots, different borders, tighter spacing,
+Edit `survey.custom_css` in `humanize_schema.json` before creating the survey
+if you need smaller screenshots, different borders, tighter spacing,
 or other survey-level styling. This is the right place for presentation changes;
 do not resize the original trace screenshots unless you specifically need lower
 resolution evidence files.
@@ -896,10 +1023,10 @@ For comparison studies, also read:
 uxtest_store/comparisons/<comparison>.html
 ```
 
-Write Markdown first:
+The calling agent should write Markdown first in its own study structure:
 
 ```text
-uxtest_store/studies/<study-id>/analysis/narrative_report.md
+writeup/report.md
 ```
 
 Then compile to HTML or PDF if requested.

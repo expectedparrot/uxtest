@@ -308,7 +308,8 @@ representative screenshots across variants:
 uv run uxtest humanize-export <study-id> \
   --template competitive-benchmark \
   --screenshots representative \
-  --max-screenshots 8
+  --max-screenshots 8 \
+  --output ./humanize/jobs.ep
 ```
 
 For full benchmark validation, export one study per variant and combine the
@@ -318,8 +319,8 @@ answer options identical across variants.
 Review before launch:
 
 ```bash
-uv run python uxtest_store/studies/<study-id>/analysis/humanize_survey.py
-uv run python uxtest_store/studies/<study-id>/analysis/humanize_survey.py --launch
+ep inspect ./humanize/jobs.ep
+ep humanize create --jobs ./humanize/jobs.ep --scenario_method ordered --schema ./humanize/humanize_schema.json
 ```
 
 Useful human questions include:

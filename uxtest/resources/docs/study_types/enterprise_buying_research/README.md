@@ -307,14 +307,15 @@ when you want real respondents to judge credibility or next-step confidence:
 uv run uxtest humanize-export <study-id> \
   --template credibility \
   --screenshots representative \
-  --max-screenshots 8
+  --max-screenshots 8 \
+  --output ./humanize/jobs.ep
 ```
 
-Review the generated script before launching:
+Inspect the generated Jobs package before creating the survey:
 
 ```bash
-uv run python uxtest_store/studies/<study-id>/analysis/humanize_survey.py
-uv run python uxtest_store/studies/<study-id>/analysis/humanize_survey.py --launch
+ep inspect ./humanize/jobs.ep
+ep humanize create --jobs ./humanize/jobs.ep --scenario_method ordered --schema ./humanize/humanize_schema.json
 ```
 
 Use human validation for questions such as:
@@ -323,7 +324,7 @@ Use human validation for questions such as:
 - What proof is missing before you would share this internally?
 - Which next step would you take from this screenshot?
 
-The generated script uses EDSL `humanize_schema` and survey-level
+The exported schema uses EDSL `humanize_schema` and survey-level
 `custom_css`, so screenshot size and layout can be adjusted before launch.
 
 ## Follow-On Studies

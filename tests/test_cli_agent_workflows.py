@@ -48,32 +48,35 @@ def test_persona_list_show_and_path(tmp_path, capsys):
 def test_trace_summary_and_edsl_jobs(tmp_path, capsys):
     store, study_id = _store_with_edsl_trace(tmp_path)
 
-    main(["--store", str(store.root), "trace", study_id])
+    main(["--human", "--store", str(store.root), "trace", study_id])
     summary = capsys.readouterr().out
     assert "Run: run-001-seniors-abcd" in summary
     assert "thinking: About likely contains team information." in summary
 
     main(["--store", str(store.root), "trace", study_id, "--edsl-jobs", "--json"])
-    data = json.loads(capsys.readouterr().out)
+    envelope = json.loads(capsys.readouterr().out)
+    assert envelope["ok"] is True
+    assert envelope["command"] == "trace"
+    data = envelope["data"]
     assert data["edsl_jobs"][0]["results_url"] == "https://www.expectedparrot.com/content/result-1"
     assert data["edsl_jobs"][0]["question_type"] == "pydantic"
 
 
-def test_report_writes_narrative_markdown(tmp_path, capsys):
+def test_report_hands_evidence_and_template_to_agent(tmp_path, capsys):
     store, study_id = _store_with_edsl_trace(tmp_path)
 
-    main(["--store", str(store.root), "report", study_id])
+    main(["--store", str(store.root), "report", "guide", study_id])
+    guide = json.loads(capsys.readouterr().out)["data"]
+    assert guide["target_file"] == "writeup/report.md"
+    assert "does not write the final stakeholder narrative" in guide["uxtest_role"]
+    assert any(item["path"].endswith("trace.jsonl") for item in guide["available_evidence"])
 
-    output = capsys.readouterr().out
-    assert "uxtest_store/studies/" in output
-    report = store.study_dir(study_id) / "analysis" / "narrative_report.md"
-    text = report.read_text(encoding="utf-8")
-    assert "# Founder Findability" in text
-    assert "## Context" in text
-    assert "## Trust And Seriousness Signals" in text
-    assert "company substance cue" in text
-    assert "About likely contains team information." in text
-    assert "../runs/run-001-seniors-abcd/screenshots/step-001.png" in text
+    main(["--store", str(store.root), "report", "template", study_id])
+    template = json.loads(capsys.readouterr().out)["data"]
+    assert "# Summary" in template["template"]
+    assert "## Findings" in template["template"]
+    assert template["purpose"].endswith("no report file was written.")
+    assert not (store.study_dir(study_id) / "analysis" / "narrative_report.md").exists()
 
 
 def test_batch_report_dedupes_findings_and_flags_reliability(tmp_path, capsys):
@@ -124,11 +127,74 @@ def test_batch_report_dedupes_findings_and_flags_reliability(tmp_path, capsys):
 
 
 def test_version_flag(capsys):
-    with pytest.raises(SystemExit) as exc:
-        main(["--version"])
+    main(["--version"])
+    envelope = json.loads(capsys.readouterr().out)
+    assert envelope["ok"] is True
+    assert envelope["command"] == "uxtest"
+    assert "uxtest " in envelope["data"]["stdout"]
 
-    assert exc.value.code == 0
-    assert "uxtest " in capsys.readouterr().out
+
+def test_default_json_wraps_command_output_and_artifacts(tmp_path, capsys):
+    store = Store.init(tmp_path)
+
+    main(["--store", str(store.root), "persona", "path", "seniors"])
+
+    envelope = json.loads(capsys.readouterr().out)
+    assert envelope["schema_version"] == 1
+    assert envelope["ok"] is True
+    assert envelope["command"] == "persona path"
+    assert envelope["error"] is None
+    assert envelope["meta"]["uxtest_version"]
+    assert envelope["artifacts"] == [str(store.personas_path / "seniors.yaml")]
+    assert envelope["data"]["stdout"] == str(store.personas_path / "seniors.yaml")
+
+    main(["--store", str(store.root), "status"])
+    status = json.loads(capsys.readouterr().out)
+    assert status["data"]["studies"] == 0
+    assert status["data"]["fixtures"] == 0
+    assert status["messages"] == []
+
+
+def test_default_json_wraps_store_errors(tmp_path, capsys):
+    store = Store.init(tmp_path)
+
+    with pytest.raises(SystemExit) as exc:
+        main(["--store", str(store.root), "show", "missing"])
+
+    assert exc.value.code == 2
+    envelope = json.loads(capsys.readouterr().out)
+    assert envelope["ok"] is False
+    assert envelope["command"] == "show"
+    assert envelope["error"] == {
+        "type": "StoreError",
+        "message": "Study 'missing' does not exist.",
+        "exit_code": 2,
+    }
+
+
+def test_default_json_wraps_argument_errors(capsys):
+    with pytest.raises(SystemExit) as exc:
+        main(["not-a-command"])
+
+    assert exc.value.code == 2
+    envelope = json.loads(capsys.readouterr().out)
+    assert envelope["ok"] is False
+    assert envelope["error"]["type"] == "ArgumentError"
+    assert envelope["error"]["exit_code"] == 2
+
+
+def test_study_list_is_structured_by_default_and_human_is_opt_in(tmp_path, capsys):
+    store = Store.init(tmp_path)
+    study = store.create_study("Checkout clarity", task="Buy a plan.", url="https://example.test")
+
+    main(["--store", str(store.root), "study", "list"])
+    envelope = json.loads(capsys.readouterr().out)
+    assert envelope["ok"] is True
+    assert envelope["command"] == "study list"
+    assert envelope["data"][0]["id"] == study.name
+
+    main(["--human", "--store", str(store.root), "study", "list"])
+    assert f"{study.name}  draft  Checkout clarity" in capsys.readouterr().out
 
 
 def _store_with_edsl_trace(tmp_path):

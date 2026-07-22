@@ -363,8 +363,10 @@ ordering where practical so it can be reviewed in diffs.
 
 ### 5.9 `analysis/report.html`
 
-Self-contained single-file HTML (inline CSS, base64 or relative-path images)
-rendering findings, scores, and selected trace excerpts for stakeholders.
+Technical evidence dashboard with inline CSS and relative links to retained run
+screenshots, rendering findings, scores, and selected trace excerpts without
+duplicating large image payloads inside the HTML.
+It is an inspectable package view, not the final stakeholder narrative.
 Derived; never the source of truth.
 
 ### 5.10 `analysis/log.html`
@@ -488,6 +490,8 @@ pretty-printed, and diff well in code review.
 | `uxtest status` | walk store | finalizes stale runs (§8.3) |
 | `uxtest show <id> [run-id]` | study/run files | — |
 | `uxtest analyze <id>` | `runs/`, cache | `analysis/findings.json`, `analysis/scores.json`, `analysis/report.html`, `analysis/log.html` |
+| `uxtest report guide <id>` | study, runs, analysis artifacts | structured evidence inventory and writing guidance to stdout |
+| `uxtest report template <id>` | study, runs, analysis artifacts | study-specific Markdown scaffold to stdout; no report file |
 | `uxtest example serve` | example site files | localhost checkout fixture server |
 | `uxtest example run` | example site files, store if present | optional store skeleton; example study; run dirs; analysis outputs |
 | `uxtest compare <id-a> <id-b>` | two `findings.json` + `scores.json` | report to stdout / `--out` |

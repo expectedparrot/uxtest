@@ -58,7 +58,6 @@ def study_analysis(store: Store, study_id: str) -> dict[str, Any]:
         "scores": scores,
         "report_path": analysis_dir / "report.html",
         "log_path": analysis_dir / "log.html",
-        "narrative_report_path": analysis_dir / "narrative_report.md",
     }
 
 

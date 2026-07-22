@@ -20,7 +20,8 @@ uxtest docs show root
 uxtest show <study-id> --json
 uxtest trace <study-id>
 uxtest trace <study-id> --edsl-jobs --json
-uxtest batch report <name> --study <study-id-a> --study <study-id-b> --format md,html
+uxtest report guide <study-id>
+uxtest report template <study-id>
 ```
 
 Read the generated artifacts directly:
@@ -30,7 +31,7 @@ uxtest_store/studies/<study-id>/study.yaml
 uxtest_store/studies/<study-id>/analysis/findings.json
 uxtest_store/studies/<study-id>/analysis/scores.json
 uxtest_store/studies/<study-id>/analysis/log.html
-uxtest_store/studies/<study-id>/analysis/report.html
+uxtest_store/studies/<study-id>/analysis/report.html  # technical evidence dashboard
 uxtest_store/studies/<study-id>/runs/<run-id>/meta.json
 uxtest_store/studies/<study-id>/runs/<run-id>/trace.jsonl
 uxtest_store/studies/<study-id>/runs/<run-id>/screenshots/
@@ -106,7 +107,8 @@ Interpret stop quality carefully:
 
 ## Recommended Report Shape
 
-Write the final report as a narrative memo:
+Use the scaffold returned by `uxtest report template <study-id>`, then write the
+final report as a narrative memo in the calling agent's own output structure:
 
 1. **Title**
    Name the site/product, study type, and target question.

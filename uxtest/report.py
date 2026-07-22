@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import html
-import base64
-import mimetypes
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +35,7 @@ def render_report(
     severity_counts = _severity_counts(findings_list)
     generated_at = str(scores.get("generated_at") or findings.get("generated_at") or "")
     animation_link = _animation_link(study_dir)
+    journey = _journey_html(study_dir)
 
     return f"""<!doctype html>
 <html lang="en">
@@ -169,6 +168,17 @@ def render_report(
         border-radius: 8px;
         background: #fff;
       }}
+      .journey-preview {{
+        display: block; width: 100%; height: 320px; padding: 12px; cursor: zoom-in;
+        overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--band);
+      }}
+      .journey-preview img {{ display: block; width: 100%; height: 100%; object-fit: contain; }}
+      .journey-modal {{ position: fixed; inset: 0; z-index: 30; display: none; padding: 28px; background: rgba(18,25,33,.88); }}
+      .journey-modal.open {{ display: grid; grid-template-rows: auto minmax(0,1fr); }}
+      .journey-modal-bar {{ display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; color: #fff; background: #23313b; }}
+      .journey-modal-bar button {{ padding: 7px 11px; color: #fff; border: 1px solid #89959e; border-radius: 5px; background: transparent; cursor: pointer; }}
+      .journey-scroll {{ overflow: auto; background: #f5f7fa; }}
+      .journey-scroll img {{ display: block; width: auto; max-width: none; height: auto; }}
       table {{ width: 100%; border-collapse: collapse; }}
       th, td {{ padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: left; }}
       th {{ color: var(--muted); font-size: .82rem; text-transform: uppercase; }}
@@ -222,6 +232,8 @@ def render_report(
         {_findings_html(findings_list, study_dir=study_dir)}
       </section>
 
+      {journey}
+
       <section class="section">
         <h2>Methodology</h2>
         <p class="muted">{_h(str(scores.get("methodology") or ""))}</p>
@@ -229,6 +241,10 @@ def render_report(
     </main>
     <div id="lightbox" class="lightbox" role="dialog" aria-modal="true" aria-label="Screenshot preview" onclick="closeShot()">
       <img id="lightbox-image" alt="Expanded evidence screenshot" />
+    </div>
+    <div id="journey-modal" class="journey-modal" role="dialog" aria-modal="true" aria-label="Journey tree">
+      <div class="journey-modal-bar"><strong>Journey tree</strong><button type="button" onclick="closeJourney()">Close</button></div>
+      <div class="journey-scroll"><img src="journey/journey.svg" alt="Full-size screenshot-backed journey tree" /></div>
     </div>
     <script>
       function openShot(src) {{
@@ -243,8 +259,10 @@ def render_report(
         box.classList.remove("open");
         image.src = "";
       }}
+      function openJourney() {{ document.getElementById("journey-modal").classList.add("open"); }}
+      function closeJourney() {{ document.getElementById("journey-modal").classList.remove("open"); }}
       document.addEventListener("keydown", function(event) {{
-        if (event.key === "Escape") closeShot();
+        if (event.key === "Escape") {{ closeShot(); closeJourney(); }}
       }});
     </script>
   </body>
@@ -263,6 +281,20 @@ def _animation_link(study_dir: Path | None) -> str:
     if not index.exists():
         return ""
     return '<p><a href="animations/index.html">View run animations</a></p>'
+
+
+def _journey_html(study_dir: Path | None) -> str:
+    if study_dir is None:
+        return ""
+    journey = study_dir / "analysis" / "journey" / "journey.svg"
+    if not journey.exists():
+        return ""
+    return '''<section class="section">
+        <h2>Journey tree</h2>
+        <p class="muted">Screenshot-backed paths through the interface. Shared prefixes merge; divergent actions branch.</p>
+        <button class="journey-preview" type="button" onclick="openJourney()" aria-label="Open full-size journey tree"><img src="journey/journey.svg" alt="Screenshot-backed journey tree preview" /></button>
+        <p class="muted">Select the preview to inspect the full-size diagram with horizontal and vertical scrolling.</p>
+      </section>'''
 
 
 def _severity_counts(findings: list[dict[str, Any]]) -> dict[str, int]:
@@ -343,25 +375,11 @@ def _screenshot_src(screenshot: str, *, study_dir: Path | None) -> str:
     if study_dir is not None:
         path = study_dir / screenshot
         if path.exists():
-            mime_type = mimetypes.guess_type(path.name)[0] or "image/png"
-            data = base64.b64encode(_image_bytes(path)).decode("ascii")
-            return f"data:{mime_type};base64,{data}"
+            # report.html lives in analysis/, one level below the study root.
+            # Link retained evidence rather than copying large base64 payloads
+            # into every derived dashboard.
+            return f"../{screenshot}"
     return f"../{screenshot}"
-
-
-def _image_bytes(path: Path) -> bytes:
-    try:
-        from PIL import Image
-
-        with Image.open(path) as image:
-            image.thumbnail((1100, 700))
-            import io
-
-            output = io.BytesIO()
-            image.save(output, format="PNG", optimize=True)
-            return output.getvalue()
-    except Exception:
-        return path.read_bytes()
 
 
 def _round(value: Any) -> str:

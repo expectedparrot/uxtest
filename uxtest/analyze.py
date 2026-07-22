@@ -43,6 +43,10 @@ def analyze_study(
     log_path = analysis_dir / "log.html"
     atomic_write_json(findings_path, findings)
     atomic_write_json(scores_path, scores)
+    if any(run.get("trace") for run in runs):
+        from .journey import generate_journey_tree
+
+        generate_journey_tree(store, study_id)
     write_report(report_path, study=study, findings=findings, scores=scores, study_dir=study_dir)
     write_log_report(log_path, study=study, runs=runs, study_dir=study_dir)
     write_uxr_artifacts(analysis_dir, study=study, findings=findings, scores=scores)

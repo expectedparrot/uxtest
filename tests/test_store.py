@@ -143,6 +143,9 @@ def test_analyze_writes_findings_and_scores(tmp_path):
         + "\n",
         encoding="utf-8",
     )
+    screenshots = run_dir / "screenshots"
+    screenshots.mkdir()
+    (screenshots / "step-001.png").write_bytes(b"evidence")
 
     findings_path, scores_path, report_path, log_path = analyze_study(store, study_dir.name)
 
@@ -154,9 +157,12 @@ def test_analyze_writes_findings_and_scores(tmp_path):
     assert findings["findings"][0]["evidence"][0]["evidence_id"] == "f-001-e01"
     assert scores["task_completion_rate"] == 0
     assert scores["max_frustration"] == 7
-    assert "<!doctype html>" in report_path.read_text(encoding="utf-8")
-    assert "Run ended with max_steps" in report_path.read_text(encoding="utf-8")
-    assert "f-001-e01" in report_path.read_text(encoding="utf-8")
+    report_text = report_path.read_text(encoding="utf-8")
+    assert "<!doctype html>" in report_text
+    assert "Run ended with max_steps" in report_text
+    assert "f-001-e01" in report_text
+    assert "../runs/run-001-seniors-abcd/screenshots/step-001.png" in report_text
+    assert "data:image" not in report_text
     assert "<!doctype html>" in log_path.read_text(encoding="utf-8")
     assert "Developer Log" in log_path.read_text(encoding="utf-8")
     assert "Study Plan" in (analysis_dir / "study_plan.md").read_text(encoding="utf-8")
