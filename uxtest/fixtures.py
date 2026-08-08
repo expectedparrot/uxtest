@@ -102,6 +102,118 @@ BUILTIN_PERSONAS: dict[str, dict[str, Any]] = {
         "goals_bias": "Focuses on total cost, fees, trust signals, and whether the final order action is safe.",
         "frustration": {"threshold": 6, "per_step_decay": 1},
     },
+    "startup-founder": {
+        "schema_version": 1,
+        "name": "startup-founder",
+        "description": "Time-constrained startup founder evaluating product value and fit",
+        "attributes": {
+            "role": "startup founder",
+            "technical_depth": "medium",
+            "buying_goal": "decide whether the product is worth evaluating",
+            "time_pressure": "high",
+        },
+        "accessibility": {},
+        "goals_bias": "Looks for a crisp value proposition, proof, pricing, and a fast path to trying the product.",
+        "frustration": {"threshold": 6, "per_step_decay": 1},
+    },
+    "enterprise-insights-lead": {
+        "schema_version": 1,
+        "name": "enterprise-insights-lead",
+        "description": "Enterprise insights leader evaluating research credibility and buying fit",
+        "attributes": {
+            "role": "enterprise insights lead",
+            "technical_depth": "low",
+            "buying_goal": "decide whether to book a demo",
+            "time_pressure": "medium",
+        },
+        "accessibility": {},
+        "goals_bias": "Looks for enterprise credibility, demos, case studies, security, customer proof, and clear contact paths.",
+        "frustration": {"threshold": 6, "per_step_decay": 1},
+    },
+    "developer-builder": {
+        "schema_version": 1,
+        "name": "developer-builder",
+        "description": "Developer evaluating whether the product supports programmable workflows",
+        "attributes": {
+            "role": "developer",
+            "technical_depth": "high",
+            "workflow_focus": "API, docs, examples, automation",
+            "buying_goal": "decide whether the product is programmable",
+        },
+        "accessibility": {},
+        "goals_bias": "Looks for documentation, API references, GitHub examples, quickstarts, and concrete technical proof.",
+        "frustration": {"threshold": 6, "per_step_decay": 1},
+    },
+    "research-director": {
+        "schema_version": 1,
+        "name": "research-director",
+        "description": "Research director assessing methodological fit and organizational adoption",
+        "attributes": {
+            "role": "research director",
+            "technical_depth": "medium",
+            "buying_goal": "assess whether the product improves the research workflow",
+            "time_pressure": "medium",
+        },
+        "accessibility": {},
+        "goals_bias": "Looks for methodological credibility, workflow fit, evidence quality, governance, and team adoption support.",
+        "frustration": {"threshold": 6, "per_step_decay": 1},
+    },
+    "academic-researcher": {
+        "schema_version": 1,
+        "name": "academic-researcher",
+        "description": "Academic researcher assessing methods, validity, and reproducibility",
+        "attributes": {
+            "role": "academic researcher",
+            "technical_depth": "high",
+            "buying_goal": "decide whether the product is suitable for rigorous research",
+            "time_pressure": "low",
+        },
+        "accessibility": {},
+        "goals_bias": "Looks for methods, validity evidence, reproducibility, citations, documentation, and transparent limitations.",
+        "frustration": {"threshold": 7, "per_step_decay": 1},
+    },
+    "survey-ops-manager": {
+        "schema_version": 1,
+        "name": "survey-ops-manager",
+        "description": "Survey operations manager evaluating workflow reliability and scale",
+        "attributes": {
+            "role": "survey operations manager",
+            "technical_depth": "medium",
+            "buying_goal": "assess operational workflow fit",
+            "time_pressure": "high",
+        },
+        "accessibility": {},
+        "goals_bias": "Looks for setup effort, repeatability, integrations, quality controls, throughput, and operational support.",
+        "frustration": {"threshold": 6, "per_step_decay": 1},
+    },
+    "enterprise-procurement-lead": {
+        "schema_version": 1,
+        "name": "enterprise-procurement-lead",
+        "description": "Enterprise procurement lead assessing commercial and implementation readiness",
+        "attributes": {
+            "role": "enterprise procurement lead",
+            "technical_depth": "low",
+            "buying_goal": "decide whether the vendor can enter procurement",
+            "time_pressure": "medium",
+        },
+        "accessibility": {},
+        "goals_bias": "Looks for pricing, contracting, implementation, support, customer proof, and a clear sales contact path.",
+        "frustration": {"threshold": 6, "per_step_decay": 1},
+    },
+    "enterprise-risk-reviewer": {
+        "schema_version": 1,
+        "name": "enterprise-risk-reviewer",
+        "description": "Enterprise risk reviewer assessing security, privacy, and governance evidence",
+        "attributes": {
+            "role": "enterprise risk reviewer",
+            "technical_depth": "medium",
+            "buying_goal": "determine whether the product can pass risk review",
+            "time_pressure": "medium",
+        },
+        "accessibility": {},
+        "goals_bias": "Looks for security, privacy, data handling, compliance, governance, reliability, and accountable contacts.",
+        "frustration": {"threshold": 6, "per_step_decay": 1},
+    },
 }
 
 
@@ -117,8 +229,7 @@ def run_fixture(
     base_dir = fixture_path.parent
     server_process = _ensure_fixture_server(fixture, base_dir=base_dir)
     try:
-        personas = [str(item) for item in fixture.get("personas") or ["seniors"]]
-        _ensure_personas(store, personas)
+        _ensure_fixture_personas(store, fixture)
         study_ids: list[str] = []
         eval_results: dict[str, dict[str, Any]] = {}
         artifacts: list[Path] = []
@@ -350,6 +461,18 @@ def _ensure_personas(store: Store, personas: list[str]) -> None:
         if persona not in BUILTIN_PERSONAS:
             raise StoreError(f"Persona {persona!r} does not exist.", exit_code=2)
         store.write_persona(BUILTIN_PERSONAS[persona])
+
+
+def _ensure_fixture_personas(store: Store, fixture: dict[str, Any]) -> None:
+    """Materialize every persona referenced at fixture or variant scope."""
+    names = {str(item) for item in fixture.get("personas") or []}
+    variants = fixture.get("variants") or []
+    if isinstance(variants, list):
+        for variant in variants:
+            if not isinstance(variant, dict):
+                continue
+            names.update(str(item) for item in variant.get("personas") or [])
+    _ensure_personas(store, sorted(names or {"seniors"}))
 
 
 def _merge_dict(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:

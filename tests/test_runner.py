@@ -323,3 +323,18 @@ def test_bundled_docs_and_examples_are_discoverable():
     assert _doc_resource("task-discovery").is_file()
     assert _doc_resource("conversion-path-testing").is_file()
     assert _example_resource("expectedparrot-enterprise-demo").is_file()
+
+
+def test_bundled_expectedparrot_fixture_materializes_variant_personas(tmp_path):
+    from uxtest.fixtures import _ensure_fixture_personas
+    from uxtest.store import Store, read_yaml
+
+    store = Store.init(tmp_path)
+    fixture = read_yaml(Path(_example_resource("expectedparrot-task-discovery")))
+
+    _ensure_fixture_personas(store, fixture)
+
+    for name in ("startup-founder", "enterprise-insights-lead", "developer-builder"):
+        persona_path = store.personas_path / f"{name}.yaml"
+        assert persona_path.exists()
+        assert read_yaml(persona_path)["name"] == name
