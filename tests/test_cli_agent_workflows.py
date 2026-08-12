@@ -21,6 +21,15 @@ def test_doc_resource_accepts_short_readme_path():
     assert _doc_resource("feature_findability/README.md").is_file()
 
 
+def test_examples_path_uses_package_resource_context(capsys):
+    main(["examples", "path", "expectedparrot-task-discovery"])
+
+    envelope = json.loads(capsys.readouterr().out)
+    assert envelope["ok"] is True
+    assert envelope["artifacts"]
+    assert envelope["artifacts"][0].endswith("task-discovery.yaml")
+
+
 def test_report_writer_agent_doc_is_discoverable(capsys):
     assert _doc_resource("report-writer-agent").is_file()
 

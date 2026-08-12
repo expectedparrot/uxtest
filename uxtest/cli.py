@@ -1302,7 +1302,7 @@ def cmd_examples_list(args: argparse.Namespace) -> None:
 
 def cmd_examples_path(args: argparse.Namespace) -> None:
     resource = _example_resource(args.name)
-    with resources.as_file(resource) as path:
+    with resource_as_file(resource) as path:
         print(path)
 
 
