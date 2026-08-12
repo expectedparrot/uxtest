@@ -1,5 +1,46 @@
 # uxtest Agent Guide
 
+<p align="center">
+  <img src="docs/assets/uxtest-package.png" width="760" alt="Expected Parrot considering what action to take on a web page">
+</p>
+
+## Copy and paste into Codex or Claude Code
+
+```text
+Set up UXTest and help me run a synthetic-user UX study in this repository.
+
+Install the current UXTest and EDSL `main` branches from GitHub, upgrading any
+existing installations and bypassing cached source archives:
+
+python -m pip install --upgrade --no-cache-dir \
+  "edsl @ git+https://github.com/expectedparrot/edsl.git@main" \
+  "uxtest @ git+https://github.com/expectedparrot/uxtest.git@main"
+python -m playwright install chromium
+
+Verify the installation and browser:
+
+uxtest --version
+uxtest doctor
+uxtest docs list
+ep --help
+
+Run `ep auth status`. If authentication is missing, run `ep auth login` and
+follow its login flow; do not log in again when the existing `.env` or EDSL
+profile is already configured. Never display, copy, or commit API keys. Run
+`ep check` before any paid model execution.
+
+Use `uxtest docs show root` as the operating guide and `uxtest docs show
+study-types` to choose the smallest study that answers my question. Inspect
+the available fixtures with `uxtest examples list`, copy an appropriate
+fixture into this repository before editing it, and start with a small pilot.
+
+Treat UXTest's JSON envelopes as the source of truth. Preserve study traces,
+screenshots, accessibility snapshots, and analysis artifacts. Support every
+finding with recorded evidence, distinguish browser navigation from screenshot
+review, and ask before selecting a paid model, running remote inference,
+testing a production site in a way that could mutate data, or opening a GUI.
+```
+
 `uxtest` runs synthetic-user UX studies against live web pages with Playwright
 and EDSL remote inference. This README is written for coding agents that have
 installed the package and need to discover the docs, copy examples, run studies,
